@@ -1,0 +1,1 @@
+uvlong nanosec(void);
