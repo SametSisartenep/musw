@@ -2,6 +2,7 @@
 
 typedef struct GameState GameState;
 typedef struct Derivative Derivative;
+typedef struct Conn Conn;
 
 struct GameState
 {
@@ -11,4 +12,11 @@ struct GameState
 struct Derivative
 {
 	double dx, dv;
+};
+
+struct Conn
+{
+	int *fds;
+	ulong off;
+	ulong cap;
 };
