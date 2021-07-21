@@ -5,7 +5,10 @@ TARG=\
 	musw\
 	muswd\
 
-OFILES=
+OFILES=\
+	alloc.$O\
+	physics.$O\
+	nanosec.$O\
 
 HFILES=\
 	dat.h\
