@@ -9,6 +9,8 @@ OFILES=\
 	alloc.$O\
 	physics.$O\
 	nanosec.$O\
+	pack.$O\
+	lobby.$O\
 
 HFILES=\
 	dat.h\

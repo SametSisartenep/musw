@@ -2,7 +2,8 @@
 
 typedef struct GameState GameState;
 typedef struct Derivative Derivative;
-typedef struct Conn Conn;
+typedef struct Seats Seats;
+typedef struct Lobby Lobby;
 
 struct GameState
 {
@@ -14,9 +15,18 @@ struct Derivative
 	double dx, dv;
 };
 
-struct Conn
+struct Seats
 {
 	int *fds;
-	ulong off;
+	ulong len;
 	ulong cap;
+};
+
+struct Lobby
+{
+	Seats seats;
+
+	int (*takeseat)(Lobby*, int);
+	int (*getcouple)(Lobby*, int*);
+	int (*leaveseat)(Lobby*, ulong);
 };

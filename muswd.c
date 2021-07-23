@@ -9,7 +9,8 @@ int debug;
 GameState state;
 double t, Δt;
 
-Conn conns;
+Lobby *lobby;
+
 
 static long
 _iolisten(va_list *arg)
@@ -54,15 +55,11 @@ threadlisten(void *arg)
 			continue;
 		}
 
-		if(conns.off >= conns.cap){
-			conns.cap += 8;
-			conns.fds = erealloc(conns.fds, conns.cap*sizeof(*conns.fds));
-		}
-		conns.fds[conns.off++] = dfd;
+		lobby->takeseat(lobby, dfd);
 
 		if(debug)
-			fprint(2, "added conn %d for %lud conns at %lud max\n",
-				dfd, conns.off, conns.cap);
+			fprint(2, "added conn for %lud conns at %lud max\n",
+				lobby->seats.len, lobby->seats.cap);
 	}
 }
 
@@ -95,16 +92,16 @@ threadsim(void *)
 		then = now;
 		timeacc += frametime/1e9;
 
-		for(i = 0; i < conns.off; i++)
-			if(fprint(conns.fds[i], "state: x=%g v=%g\n", state.x, state.v) < 0){
-				fprint(2, "client #%d hanged up\n", i+1);
-				if(conns.off < conns.cap-1)
-					memmove(&conns.fds[conns.off], &conns.fds[conns.off+1], conns.cap-conns.off - 1);
-				conns.off--;
+		for(i = 0; i < lobby->seats.len; i++)
+			if(fprint(lobby->seats.fds[i], "state: x=%g v=%g\n", state.x, state.v) < 0){
+				if(debug)
+					fprint(2, "client #%d hanged up\n", i+1);
+
+				lobby->leaveseat(lobby, i);
 
 				if(debug)
 					fprint(2, "removed conn %d for %lud conns at %lud max\n",
-						i, conns.off, conns.cap);
+						i, lobby->seats.len, lobby->seats.cap);
 
 				i--;
 			}
@@ -146,8 +143,7 @@ threadmain(int argc, char *argv[])
 	if(acfd < 0)
 		sysfatal("announce: %r");
 
-	conns.fds = emalloc(2*sizeof(*conns.fds));
-	conns.cap = 2;
+	lobby = newlobby();
 
 	threadcreate(threadlisten, adir, 4096);
 	threadcreate(threadsim, nil, 4096);
