@@ -35,7 +35,7 @@ static int
 lobby_leaveseat(Lobby *l, ulong idx)
 {
 	if(idx < l->seats.cap-1)
-		memmove(&l->seats.fds[idx], &l->seats.fds[idx+1], l->seats.cap*sizeof(int) - (l->seats.len + 1)*sizeof(int));
+		memmove(&l->seats.fds[idx], &l->seats.fds[idx+1], l->seats.cap*sizeof(int) - (idx + 1)*sizeof(int));
 	l->seats.len--;
 	return 0;
 }

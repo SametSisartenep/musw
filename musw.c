@@ -16,7 +16,7 @@ threadnetin(void *arg)
 
 	while((n = ioread(io, fd, buf, sizeof buf)) > 0)
 		if(iowrite(io, 1, buf, n) != n)
-			fprint(2, "iowrite: %r\n");
+			fprint(2, "netin iowrite: %r\n");
 	closeioproc(io);
 }
 
@@ -32,7 +32,7 @@ threadnetout(void *arg)
 
 	while((n = ioread(io, 0, buf, sizeof buf)) > 0)
 		if(iowrite(io, fd, buf, n) != n)
-			fprint(2, "iowrite: %r\n");
+			fprint(2, "netout iowrite: %r\n");
 	closeioproc(io);
 }
 
