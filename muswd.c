@@ -144,6 +144,69 @@ threadsim(void *)
 }
 
 void
+fprintstats(int fd)
+{
+	Party *p;
+	ulong nparties = 0;
+
+	for(p = theparty.next; p != &theparty; p = p->next)
+		nparties++;
+
+	fprint(fd, "curplayers	%lud\n"
+		   "totplayers	%lud\n"
+		   "maxplayers	%lud\n"
+		   "curparties	%lud\n"
+		   "totparties	%lud\n",
+		lobby->nseats, (ulong)0, lobby->cap,
+		nparties, (ulong)0);
+}
+
+void
+fprintstate(int fd)
+{
+	fprint(fd, "x	%g\n"
+		   "v	%g\n",
+		state.x, state.v);
+}
+
+void
+threadctl(void *)
+{
+	int fd, pfd[2], n, ncmdargs;
+	char buf[256], *usr, *cmdargs[2];
+	Ioproc *io;
+
+	if(pipe(pfd) < 0)
+		sysfatal("pipe: %r");
+
+	usr = getenv("user");
+	snprint(buf, sizeof buf, "/srv/muswctl.%s.%d", usr, getpid());
+	free(usr);
+
+	fd = create(buf, OWRITE|ORCLOSE|OCEXEC, 0600);
+	if(fd < 0)
+		sysfatal("open: %r");
+	fprint(fd, "%d", pfd[0]);
+	close(pfd[0]);
+
+	io = ioproc();
+	while((n = ioread(io, pfd[1], buf, sizeof(buf)-1)) > 0){
+		buf[n] = 0;
+
+		ncmdargs = tokenize(buf, cmdargs, 2);
+		if(ncmdargs == 2){
+			if(strcmp(cmdargs[0], "show") == 0){
+				if(strcmp(cmdargs[1], "stats") == 0)
+					fprintstats(pfd[1]);
+				else if(strcmp(cmdargs[1], "state") == 0)
+					fprintstate(pfd[1]);
+			}
+		}
+	}
+	closeioproc(io);
+}
+
+void
 usage(void)
 {
 	fprint(2, "usage: %s [-d] [-a addr]\n", argv0);
@@ -180,6 +243,7 @@ threadmain(int argc, char *argv[])
 	lobby = newlobby();
 	inittheparty();
 
+	threadcreate(threadctl, nil, 4096);
 	threadcreate(threadlisten, adir, 4096);
 	threadcreate(threadsim, nil, 4096);
 	threadexits(nil);
