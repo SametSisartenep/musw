@@ -3,58 +3,37 @@
 #include "dat.h"
 #include "fns.h"
 
-/*
- * these routines were taken directly from ssh(1).
- * they serve as a reference.
- */
+static ulong
+get4(uchar *p)
+{
+	return p[0]<<24 | p[1]<<16 | p[2]<<8 | p[3];
+}
+
+static void
+put4(uchar *p, ulong u)
+{
+	p[0] = u>>24, p[1] = u>>16, p[2] = u>>8, p[3] = u;
+}
 
 static int
 vpack(uchar *p, int n, char *fmt, va_list a)
 {
 	uchar *p0 = p, *e = p+n;
-	u32int u;
-//	mpint *m;
-	void *s;
-	int c;
+	FPdbleword d;
 
 	for(;;){
-		switch(c = *fmt++){
+		switch(*fmt++){
 		case '\0':
 			return p - p0;
-		case '_':
-			if(++p > e) goto err;
-			break;
-		case '.':
-			*va_arg(a, void**) = p;
-			break;
-		case 'b':
-			if(p >= e) goto err;
-			*p++ = va_arg(a, int);
-			break;
-		case 'm':
-//			m = va_arg(a, mpint*);
-//			u = (mpsignif(m)+8)/8;
-			if(p+4 > e) goto err;
-//			PUT4(p, u), p += 4;
-			if(u > e-p) goto err;
-//			mptober(m, p, u), p += u;
-			break;
-		case '[':
-		case 's':
-			s = va_arg(a, void*);
-			u = va_arg(a, int);
-			if(c == 's'){
-				if(p+4 > e) goto err;
-//				PUT4(p, u), p += 4;
-			}
-			if(u > e-p) goto err;
-			memmove(p, s, u);
-			p += u;
-			break;
-		case 'u':
-			u = va_arg(a, int);
-			if(p+4 > e) goto err;
-//			PUT4(p, u), p += 4;
+		case 'd':
+			d.x = va_arg(a, double);
+
+			if(p+8 > e)
+				goto err;
+
+			put4(p, d.hi), p += 4;
+			put4(p, d.lo), p += 4;
+
 			break;
 		}
 	}
@@ -66,51 +45,20 @@ static int
 vunpack(uchar *p, int n, char *fmt, va_list a)
 {
 	uchar *p0 = p, *e = p+n;
-	u32int u;
-//	mpint *m;
-	void *s;
+	FPdbleword d;
 
 	for(;;){
 		switch(*fmt++){
 		case '\0':
 			return p - p0;
-		case '_':
-			if(++p > e) goto err;
-			break;
-		case '.':
-			*va_arg(a, void**) = p;
-			break;
-		case 'b':
-			if(p >= e) goto err;
-			*va_arg(a, int*) = *p++;
-			break;
-		case 'm':
-			if(p+4 > e) goto err;
-//			u = GET4(p), p += 4;
-			if(u > e-p) goto err;
-//			m = va_arg(a, mpint*);
-//			betomp(p, u, m), p += u;
-			break;
-		case 's':
-			if(p+4 > e) goto err;
-//			u = GET4(p), p += 4;
-			if(u > e-p) goto err;
-			*va_arg(a, void**) = p;
-			*va_arg(a, int*) = u;
-			p += u;
-			break;
-		case '[':
-			s = va_arg(a, void*);
-			u = va_arg(a, int);
-			if(u > e-p) goto err;
-			memmove(s, p, u);
-			p += u;
-			break;
-		case 'u':
-			if(p+4 > e) goto err;
-//			u = GET4(p);
-			*va_arg(a, int*) = u;
-			p += 4;
+		case 'd':
+			if(p+8 > e)
+				goto err;
+
+			d.hi = get4(p), p += 4;
+			d.lo = get4(p), p += 4;
+			*va_arg(a, double*) = d.x;
+
 			break;
 		}
 	}

@@ -55,12 +55,33 @@ threadlisten(void *arg)
 			continue;
 		}
 
-		lobby->takeseat(lobby, dfd);
+		lobby->takeseat(lobby, ldir, lcfd, dfd);
 
 		if(debug)
 			fprint(2, "added conn for %lud conns at %lud max\n",
-				lobby->seats.len, lobby->seats.cap);
+				lobby->nseats, lobby->cap);
 	}
+}
+
+void
+broadcaststate(void)
+{
+	int i, n;
+	uchar buf[256];
+	Party *p;
+
+	if(debug)
+		fprint(2, "state: x=%g v=%g\n", state.x, state.v);
+
+	for(p = theparty.next; p != &theparty; p = p->next)
+		for(i = 0; i < nelem(p->players); i++){
+			n = pack(buf, sizeof buf, "dd", state.x, state.v);
+			if(write(p->players[i].conn.data, buf, n) != n){
+				lobby->takeseat(lobby, p->players[i^1].conn.dir, p->players[i^1].conn.ctl, p->players[i^1].conn.data);
+				delparty(p);
+			}
+		}
+
 }
 
 void
@@ -74,10 +95,10 @@ resetsim(void)
 void
 threadsim(void *)
 {
-	int i;
 	uvlong then, now;
 	double frametime, timeacc;
 	Ioproc *io;
+	Player couple[2];
 
 	Δt = 0.01;
 	then = nanosec();
@@ -87,24 +108,30 @@ threadsim(void *)
 	resetsim();
 
 	for(;;){
+		lobby->healthcheck(lobby);
+
+		if(debug){
+			Party *p;
+			ulong nparties = 0;
+
+			for(p = theparty.next; p != &theparty; p = p->next)
+				nparties++;
+
+			fprint(2, "lobby status: %lud conns at %lud cap\n",
+				lobby->nseats, lobby->cap);
+			fprint(2, "party status: %lud parties going on\n",
+				nparties);
+		}
+
+		if(lobby->getcouple(lobby, couple) != -1)
+			newparty(couple);
+
+		broadcaststate();
+
 		now = nanosec();
 		frametime = now - then;
 		then = now;
 		timeacc += frametime/1e9;
-
-		for(i = 0; i < lobby->seats.len; i++)
-			if(fprint(lobby->seats.fds[i], "state: x=%g v=%g\n", state.x, state.v) < 0){
-				if(debug)
-					fprint(2, "client #%d hanged up\n", i+1);
-
-				lobby->leaveseat(lobby, i);
-
-				if(debug)
-					fprint(2, "removed conn %d for %lud conns at %lud max\n",
-						i, lobby->seats.len, lobby->seats.cap);
-
-				i--;
-			}
 
 		while(timeacc >= Δt){
 			integrate(&state, t, Δt);
@@ -119,7 +146,7 @@ threadsim(void *)
 void
 usage(void)
 {
-	fprint(2, "usage: %s [-d]\n", argv0);
+	fprint(2, "usage: %s [-d] [-a addr]\n", argv0);
 	threadexitsall("usage");
 }
 
@@ -127,9 +154,13 @@ void
 threadmain(int argc, char *argv[])
 {
 	int acfd;
-	char adir[40];
+	char adir[40], *addr;
 
+	addr = "udp!*!112";
 	ARGBEGIN{
+	case 'a':
+		addr = EARGF(usage());
+		break;
 	case 'd':
 		debug++;
 		break;
@@ -139,11 +170,15 @@ threadmain(int argc, char *argv[])
 	if(argc != 0)
 		usage();
 
-	acfd = announce("tcp!*!112", adir);
+	acfd = announce(addr, adir);
 	if(acfd < 0)
 		sysfatal("announce: %r");
 
+	if(debug)
+		fprint(2, "listening on %s\n", addr);
+
 	lobby = newlobby();
+	inittheparty();
 
 	threadcreate(threadlisten, adir, 4096);
 	threadcreate(threadsim, nil, 4096);

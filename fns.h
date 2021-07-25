@@ -26,3 +26,12 @@ int unpack(uchar*, int, char*, ...);
  */
 Lobby *newlobby(void);
 void dellobby(Lobby*);
+
+/*
+ * lobby
+ */
+void inittheparty(void);
+Party *newparty(Player[2]);
+void delparty(Party*);
+void addparty(Party*);
+

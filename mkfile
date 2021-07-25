@@ -11,6 +11,7 @@ OFILES=\
 	nanosec.$O\
 	pack.$O\
 	lobby.$O\
+	party.$O\
 
 HFILES=\
 	dat.h\

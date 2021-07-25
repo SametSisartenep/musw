@@ -4,19 +4,26 @@
 #include "dat.h"
 #include "fns.h"
 
+int debug;
+
+
 void
 threadnetin(void *arg)
 {
-	char buf[256];
+	uchar buf[256];
 	int fd, n;
+	double x, v;
 	Ioproc *io;
 
 	fd = *((int*)arg);
 	io = ioproc();
 
-	while((n = ioread(io, fd, buf, sizeof buf)) > 0)
+	while((n = ioread(io, fd, buf, sizeof buf)) > 0){
+		unpack(buf, n, "dd", &x, &v);
+		n = snprint((char *)buf, sizeof buf, "state: x=%g v=%g\n", x, v);
 		if(iowrite(io, 1, buf, n) != n)
-			fprint(2, "netin iowrite: %r\n");
+			fprint(2, "iowrite: %r\n");
+	}
 	closeioproc(io);
 }
 
@@ -32,7 +39,7 @@ threadnetout(void *arg)
 
 	while((n = ioread(io, 0, buf, sizeof buf)) > 0)
 		if(iowrite(io, fd, buf, n) != n)
-			fprint(2, "netout iowrite: %r\n");
+			fprint(2, "iowrite: %r\n");
 	closeioproc(io);
 }
 
@@ -50,6 +57,9 @@ threadmain(int argc, char *argv[])
 	int fd;
 
 	ARGBEGIN{
+	case 'd':
+		debug++;
+		break;
 	default:
 		usage();
 	}ARGEND;

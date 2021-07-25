@@ -2,8 +2,10 @@
 
 typedef struct GameState GameState;
 typedef struct Derivative Derivative;
-typedef struct Seats Seats;
+typedef struct Conn Conn;
+typedef struct Player Player;
 typedef struct Lobby Lobby;
+typedef struct Party Party;
 
 struct GameState
 {
@@ -15,18 +17,35 @@ struct Derivative
 	double dx, dv;
 };
 
-struct Seats
+struct Conn
 {
-	int *fds;
-	ulong len;
-	ulong cap;
+	char dir[40];
+	int ctl;
+	int data;
+};
+
+struct Player
+{
+	char *name;
+	Conn conn;
 };
 
 struct Lobby
 {
-	Seats seats;
+	Player *seats;
+	ulong nseats;
+	ulong cap;
 
-	int (*takeseat)(Lobby*, int);
-	int (*getcouple)(Lobby*, int*);
+	int (*takeseat)(Lobby*, char*, int, int);
 	int (*leaveseat)(Lobby*, ulong);
+	int (*getcouple)(Lobby*, Player*);
+	void (*healthcheck)(Lobby*);
 };
+
+struct Party
+{
+	Player players[2];	/* the needle and the wedge */
+	Party *prev, *next;
+};
+
+extern Party theparty;
