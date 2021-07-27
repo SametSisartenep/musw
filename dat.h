@@ -1,5 +1,3 @@
-#define FPS2MS(fps)	(1000/(fps))
-
 typedef struct GameState GameState;
 typedef struct Derivative Derivative;
 typedef struct Conn Conn;

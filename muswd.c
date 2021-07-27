@@ -169,8 +169,10 @@ fprintstate(int fd)
 		state.x, state.v);
 }
 
+
+/* Command & Control */
 void
-threadctl(void *)
+threadC2(void *)
 {
 	int fd, pfd[2], n, ncmdargs;
 	char buf[256], *usr, *cmdargs[2];
@@ -243,7 +245,7 @@ threadmain(int argc, char *argv[])
 	lobby = newlobby();
 	inittheparty();
 
-	threadcreate(threadctl, nil, 4096);
+	threadcreate(threadC2, nil, 4096);
 	threadcreate(threadlisten, adir, 4096);
 	threadcreate(threadsim, nil, 4096);
 	threadexits(nil);

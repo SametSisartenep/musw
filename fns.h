@@ -1,3 +1,5 @@
+#define FPS2MS(fps)	(1000/(fps))
+
 /*
  * alloc
  */
