@@ -1,24 +1,17 @@
 #include <u.h>
 #include <libc.h>
-#include <draw.h>
+#include <draw.h> /* because of dat.h */
 #include "dat.h"
 #include "fns.h"
 
-//enum { DYNTIME, RENTIME, NSTATS };
-//Stats simstats[NSTATS];
-
-
 /*
  *	Dynamics stepper
- *
- * 	Currently set to a basic spring-damper system.
  */
 static double
-accel(GameState *s, double t)
+accel(GameState *s, double)
 {
 	static double k = 15, b = 0.1;
 
-	USED(t);
 	return -k*s->x - b*s->v;
 }
 

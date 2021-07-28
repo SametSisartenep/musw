@@ -1,13 +1,11 @@
 #include <u.h>
 #include <libc.h>
 #include <thread.h>
+#include <draw.h> /* because of dat.h */
 #include "dat.h"
 #include "fns.h"
 
 int debug;
-
-GameState state;
-double t, Δt;
 
 Lobby *lobby;
 
@@ -68,86 +66,79 @@ broadcaststate(void)
 {
 	int i, n;
 	uchar buf[256];
-	Party *p;
+	Player *player;
+	Party *p, *np;
 
-	if(debug)
-		fprint(2, "state: x=%g v=%g\n", state.x, state.v);
+	for(p = theparty.next; p != &theparty; p = p->next){
+		n = pack(buf, sizeof buf, "dd", p->state.x, p->state.v);
 
-	for(p = theparty.next; p != &theparty; p = p->next)
 		for(i = 0; i < nelem(p->players); i++){
-			n = pack(buf, sizeof buf, "dd", state.x, state.v);
 			if(write(p->players[i].conn.data, buf, n) != n){
-				lobby->takeseat(lobby, p->players[i^1].conn.dir, p->players[i^1].conn.ctl, p->players[i^1].conn.data);
+				player = &p->players[i^1];
+				lobby->takeseat(lobby, player->conn.dir, player->conn.ctl, player->conn.data);
+				np = p->prev;
 				delparty(p);
+				p = np;
+				break;
 			}
 		}
+	}
 
 }
 
 void
-resetsim(void)
+resetsim(Party *p)
 {
-	t = 0;
-	memset(&state, 0, sizeof state);
-	state.x = 100;
+	memset(&p->state, 0, sizeof p->state);
+	p->state.x = 100;
 }
 
 void
 threadsim(void *)
 {
 	uvlong then, now;
-	double frametime, timeacc;
+	double frametime, Δt;
 	Ioproc *io;
 	Player couple[2];
+	Party *p;
 
 	Δt = 0.01;
 	then = nanosec();
-	timeacc = 0;
 	io = ioproc();
-
-	resetsim();
 
 	for(;;){
 		lobby->healthcheck(lobby);
 
-		if(debug){
-			Party *p;
-			ulong nparties = 0;
-
-			for(p = theparty.next; p != &theparty; p = p->next)
-				nparties++;
-
-			fprint(2, "lobby status: %lud conns at %lud cap\n",
-				lobby->nseats, lobby->cap);
-			fprint(2, "party status: %lud parties going on\n",
-				nparties);
-		}
-
-		if(lobby->getcouple(lobby, couple) != -1)
+		if(lobby->getcouple(lobby, couple) != -1){
 			newparty(couple);
-
-		broadcaststate();
+			resetsim(theparty.prev); /* reset the new party */
+		}
 
 		now = nanosec();
 		frametime = now - then;
 		then = now;
-		timeacc += frametime/1e9;
 
-		while(timeacc >= Δt){
-			integrate(&state, t, Δt);
-			timeacc -= Δt;
-			t += Δt;
+		for(p = theparty.next; p != &theparty; p = p->next){
+			p->state.timeacc += frametime/1e9;
+
+			while(p->state.timeacc >= Δt){
+				integrate(&p->state, p->state.t, Δt);
+				p->state.timeacc -= Δt;
+				p->state.t += Δt;
+			}
 		}
 
-		iosleep(io, FPS2MS(1));
+		broadcaststate();
+
+		iosleep(io, FPS2MS(70));
 	}
 }
 
 void
 fprintstats(int fd)
 {
-	Party *p;
 	ulong nparties = 0;
+	Party *p;
 
 	for(p = theparty.next; p != &theparty; p = p->next)
 		nparties++;
@@ -162,11 +153,14 @@ fprintstats(int fd)
 }
 
 void
-fprintstate(int fd)
+fprintstates(int fd)
 {
-	fprint(fd, "x	%g\n"
-		   "v	%g\n",
-		state.x, state.v);
+	ulong i = 0;
+	Party *p;
+
+	for(p = theparty.next; p != &theparty; p = p->next, i++)
+		fprint(fd, "%lud [x %g	v %g]\n",
+			i, p->state.x, p->state.v);
 }
 
 
@@ -200,8 +194,8 @@ threadC2(void *)
 			if(strcmp(cmdargs[0], "show") == 0){
 				if(strcmp(cmdargs[1], "stats") == 0)
 					fprintstats(pfd[1]);
-				else if(strcmp(cmdargs[1], "state") == 0)
-					fprintstate(pfd[1]);
+				else if(strcmp(cmdargs[1], "states") == 0)
+					fprintstates(pfd[1]);
 			}
 		}
 	}
@@ -221,7 +215,7 @@ threadmain(int argc, char *argv[])
 	int acfd;
 	char adir[40], *addr;
 
-	addr = "udp!*!112";
+	addr = "tcp!*!112"; /* for testing. will work out udp soon */
 	ARGBEGIN{
 	case 'a':
 		addr = EARGF(usage());

@@ -1,5 +1,6 @@
 #include <u.h>
 #include <libc.h>
+#include <draw.h> /* because of dat.h */
 #include "dat.h"
 #include "fns.h"
 

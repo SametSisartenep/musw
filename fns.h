@@ -30,7 +30,7 @@ Lobby *newlobby(void);
 void dellobby(Lobby*);
 
 /*
- * lobby
+ * party
  */
 void inittheparty(void);
 Party *newparty(Player[2]);

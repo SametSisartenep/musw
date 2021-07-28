@@ -7,23 +7,24 @@
 #include "dat.h"
 #include "fns.h"
 
-enum {
-	K↑,
-	K←,
-	K→,
-	Kfire,
-	Khyper,
-	Kquit,
-	NKEYS
+typedef struct Keymap Keymap;
+struct Keymap
+{
+	Rune key;
+	KeyOp op;
 };
 
-Rune keys[NKEYS] = {
- [K↑]		Kup,
- [K←]		Kleft,
- [K→]		Kright,
- [Kfire]	' ',
- [Khyper]	'h',
- [Kquit]	'q'
+Keymap kmap[] = {
+	{.key = Kup,	.op = K↑},
+	{.key = Kleft,	.op = K↺},
+	{.key = Kright,	.op = K↻},
+	{.key = 'w',	.op = K↑},
+	{.key = 'a',	.op = K↺},
+	{.key = 'd',	.op = K↻},
+	{.key = ' ',	.op = Kfire},
+	{.key = 'h',	.op = Khyper},
+	{.key = 'y',	.op = Ksay},
+	{.key = 'q',	.op = Kquit}
 };
 ulong kup, kdown;
 
@@ -40,7 +41,8 @@ int debug;
 void
 kbdproc(void *)
 {
-	Rune r, *k;
+	Rune r;
+	Keymap *k;
 	char buf[128], *s;
 	int fd, n;
 
@@ -74,16 +76,17 @@ kbdproc(void *)
 		kdown = 0;
 		while(*s){
 			s += chartorune(&r, s);
-			for(k = keys; k < keys+NKEYS; k++)
-				if(r == *k){
-					kdown |= 1 << k-keys;
+			for(k = kmap; k < kmap+nelem(kmap); k++)
+				if(r == k->key){
+					kdown |= 1 << k->op;
 					break;
 				}
 		}
 		kup = ~kdown;
 
 		if(debug)
-			fprint(2, "kup\t%lub\nkdown\t%lub\n", kup, kdown);
+			fprint(2, "kup   %.*lub\nkdown %.*lub\n",
+				sizeof(kup)*8, kup, sizeof(kdown)*8, kdown);
 	}
 }
 
