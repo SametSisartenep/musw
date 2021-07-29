@@ -13,6 +13,7 @@ OFILES=\
 	pack.$O\
 	lobby.$O\
 	party.$O\
+	sprite.$O\
 
 HFILES=\
 	dat.h\

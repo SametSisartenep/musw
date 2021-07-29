@@ -1,6 +1,7 @@
 #include <u.h>
 #include <libc.h>
-#include <draw.h> /* because of dat.h */
+#include <draw.h>
+#include "libgeometry/geometry.h"
 #include "dat.h"
 #include "fns.h"
 
@@ -21,6 +22,7 @@ vpack(uchar *p, int n, char *fmt, va_list a)
 {
 	uchar *p0 = p, *e = p+n;
 	FPdbleword d;
+	Point2 P;
 
 	for(;;){
 		switch(*fmt++){
@@ -36,6 +38,14 @@ vpack(uchar *p, int n, char *fmt, va_list a)
 			put4(p, d.lo), p += 4;
 
 			break;
+		case 'P':
+			P = va_arg(a, Point2);
+
+			if(p+3*8 > e)
+				goto err;
+
+			pack(p, n, "ddd", P.x, P.y, P.w), p += 3*8;
+			break;
 		}
 	}
 err:
@@ -47,6 +57,7 @@ vunpack(uchar *p, int n, char *fmt, va_list a)
 {
 	uchar *p0 = p, *e = p+n;
 	FPdbleword d;
+	Point2 P;
 
 	for(;;){
 		switch(*fmt++){
@@ -61,6 +72,12 @@ vunpack(uchar *p, int n, char *fmt, va_list a)
 			*va_arg(a, double*) = d.x;
 
 			break;
+		case 'P':
+			if(p+3*8 > e)
+				goto err;
+
+			unpack(p, n, "ddd", &P.x, &P.y, &P.w), p += 3*8;
+			*va_arg(a, Point2*) = P;
 		}
 	}
 err:

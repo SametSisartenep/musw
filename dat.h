@@ -23,10 +23,10 @@ enum {
 	SCRHB	= SCRH+2*Borderwidth
 };
 
-typedef struct Vector Vector;
 typedef struct VModel VModel;
 typedef struct Sprite Sprite;
 typedef struct Particle Particle;
+typedef struct Bullet Bullet;
 typedef struct Ship Ship;
 typedef struct Star Star;
 typedef struct Universe Universe;
@@ -37,23 +37,18 @@ typedef struct Player Player;
 typedef struct Lobby Lobby;
 typedef struct Party Party;
 
-struct Vector
-{
-	double x, y;
-};
-
 /*
  * Vector model - made out of lines and curves
  */
 struct VModel
 {
-	Vector *pts;
+	Point2 *pts;
 	ulong npts;
 	/* WIP
 	 * l(ine) → takes 2 points
 	 * c(urve) → takes 3 points
 	 */
-//	char *strokefmt;
+	char *strokefmt;
 };
 
 struct Sprite
@@ -72,18 +67,25 @@ struct Sprite
 
 struct Particle
 {
-	Vector p, v;
+	Point2 p, v;
 	double yaw;
 	double mass;
+};
+
+struct Bullet
+{
+	Particle;
+	ulong ttl; /* in s */
+	int fired; /* XXX: |v| != 0 */
 };
 
 struct Ship
 {
 	Particle;
 	Kind kind;
-	uint ammo;
+	Bullet rounds[10];
 	VModel *mdl;
-//	Matrix mdlxform;
+	Matrix mdlxform;
 };
 
 struct Star
@@ -103,12 +105,13 @@ struct Universe
 struct GameState
 {
 	double t, timeacc;
-	double x, v;
+	Point2 p, v;
 };
 
 struct Derivative
 {
-	double dx, dv;
+	Point2 dx; /* v */
+	Point2 dv; /* a */
 };
 
 struct Conn

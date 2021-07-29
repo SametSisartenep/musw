@@ -1,7 +1,8 @@
 #include <u.h>
 #include <libc.h>
 #include <thread.h>
-#include <draw.h> /* because of dat.h */
+#include <draw.h>
+#include "libgeometry/geometry.h"
 #include "dat.h"
 #include "fns.h"
 
@@ -70,7 +71,7 @@ broadcaststate(void)
 	Party *p, *np;
 
 	for(p = theparty.next; p != &theparty; p = p->next){
-		n = pack(buf, sizeof buf, "dd", p->state.x, p->state.v);
+		n = pack(buf, sizeof buf, "PP", p->state.p, p->state.v);
 
 		for(i = 0; i < nelem(p->players); i++){
 			if(write(p->players[i].conn.data, buf, n) != n){
@@ -90,7 +91,7 @@ void
 resetsim(Party *p)
 {
 	memset(&p->state, 0, sizeof p->state);
-	p->state.x = 100;
+	p->state.p = Pt2(0,100,1);
 }
 
 void
@@ -159,8 +160,8 @@ fprintstates(int fd)
 	Party *p;
 
 	for(p = theparty.next; p != &theparty; p = p->next, i++)
-		fprint(fd, "%lud [x %g	v %g]\n",
-			i, p->state.x, p->state.v);
+		fprint(fd, "%lud [p %v	v %v]\n",
+			i, p->state.p, p->state.v);
 }
 
 
@@ -215,6 +216,7 @@ threadmain(int argc, char *argv[])
 	int acfd;
 	char adir[40], *addr;
 
+	GEOMfmtinstall();
 	addr = "tcp!*!112"; /* for testing. will work out udp soon */
 	ARGBEGIN{
 	case 'a':

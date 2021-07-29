@@ -4,6 +4,7 @@
 #include <draw.h>
 #include <mouse.h>
 #include <keyboard.h>
+#include "libgeometry/geometry.h"
 #include "dat.h"
 #include "fns.h"
 
@@ -31,7 +32,7 @@ ulong kup, kdown;
 typedef struct Ball Ball;
 struct Ball
 {
-	double x, v;
+	Point2 p, v;
 };
 
 Ball bouncer;
@@ -102,10 +103,10 @@ threadnetrecv(void *arg)
 	io = ioproc();
 
 	while((n = ioread(io, fd, buf, sizeof buf)) > 0){
-		unpack(buf, n, "dd", &bouncer.x, &bouncer.v);
+		unpack(buf, n, "PP", &bouncer.p, &bouncer.v);
 
 		if(debug)
-			fprint(2, "bouncer [%g %g]\n", bouncer.x, bouncer.v);
+			fprint(2, "bouncer %v %v\n", bouncer.p, bouncer.v);
 	}
 	closeioproc(io);
 }
@@ -134,7 +135,7 @@ redraw(void)
 	lockdisplay(display);
 
 	draw(screen, screen->r, display->black, nil, ZP);
-	fillellipse(screen, addpt(screen->r.min,Pt(Dx(screen->r)/2,Dy(screen->r)/2+bouncer.x)), 2, 2, display->white, ZP);
+	fillellipse(screen, addpt(screen->r.min,Pt(Dx(screen->r)/2,Dy(screen->r)/2+bouncer.p.y)), 2, 2, display->white, ZP);
 
 	flushimage(display, 1);
 	unlockdisplay(display);
@@ -153,6 +154,7 @@ resize(void)
 		sysfatal("resize failed");
 	unlockdisplay(display);
 
+	/* ignore move events */
 	if(Dx(screen->r) != SCRW || Dy(screen->r) != SCRH){
 		fd = open("/dev/wctl", OWRITE);
 		if(fd >= 0){
@@ -179,6 +181,7 @@ threadmain(int argc, char *argv[])
 	Mousectl *mc;
 	Ioproc *io;
 
+	GEOMfmtinstall();
 	ARGBEGIN{
 	case 'd':
 		debug++;

@@ -1,6 +1,7 @@
 #include <u.h>
 #include <libc.h>
-#include <draw.h> /* because of dat.h */
+#include <draw.h>
+#include "libgeometry/geometry.h"
 #include "dat.h"
 #include "fns.h"
 
@@ -9,12 +10,12 @@ static double G = 6.674e-11;
 /*
  *	Dynamics stepper
  */
-static double
+static Point2
 accel(GameState *s, double)
 {
 	static double k = 15, b = 0.1;
 
-	return -k*s->x - b*s->v;
+	return Vec2(0, -k*s->p.y - b*s->v.y);
 }
 
 static Derivative
@@ -23,8 +24,8 @@ eval(GameState *s0, double t, double Δt, Derivative *d)
 	GameState s;
 	Derivative res;
 
-	s.x = s0->x + d->dx*Δt;
-	s.v = s0->v + d->dv*Δt;
+	s.p = addpt2(s0->p, mulpt2(d->dx, Δt));
+	s.v = addpt2(s0->v, mulpt2(d->dv, Δt));
 
 	res.dx = s.v;
 	res.dv = accel(&s, t+Δt);
@@ -37,13 +38,13 @@ eval(GameState *s0, double t, double Δt, Derivative *d)
 static void
 euler0(GameState *s, double t, double Δt)
 {
-	static Derivative ZD = {0,0};
+	static Derivative ZD = {0};
 	Derivative d;
 
 	d = eval(s, t, Δt, &ZD);
 
-	s->x += d.dx*Δt;
-	s->v += d.dv*Δt;
+	s->p = addpt2(s->p, mulpt2(d.dx, Δt));
+	s->v = addpt2(s->v, mulpt2(d.dv, Δt));
 }
 
 /*
@@ -52,13 +53,13 @@ euler0(GameState *s, double t, double Δt)
 static void
 euler1(GameState *s, double t, double Δt)
 {
-	static Derivative ZD = {0,0};
+	static Derivative ZD = {0};
 	Derivative d;
 
 	d = eval(s, t, Δt, &ZD);
 
-	s->v += d.dv*Δt;
-	s->x += s->v*Δt;
+	s->v = addpt2(s->v, mulpt2(d.dv, Δt));
+	s->p = addpt2(s->p, mulpt2(s->v, Δt));
 }
 
 /*
@@ -67,20 +68,20 @@ euler1(GameState *s, double t, double Δt)
 static void
 rk4(GameState *s, double t, double Δt)
 {
-	static Derivative ZD = {0,0};
+	static Derivative ZD = {0};
 	Derivative a, b, c, d;
-	double dxdt, dvdt;
+	Point2 dxdt, dvdt;
 
 	a = eval(s, t, 0, &ZD);
 	b = eval(s, t, Δt/2, &a);
 	c = eval(s, t, Δt/2, &b);
 	d = eval(s, t, Δt, &c);
 
-	dxdt = 1.0/6 * (a.dx + 2*(b.dx + c.dx) + d.dx);
-	dvdt = 1.0/6 * (a.dv + 2*(b.dv + c.dv) + d.dv);
+	dxdt = divpt2(addpt2(addpt2(a.dx, mulpt2(addpt2(b.dx, c.dx), 2)), d.dx), 6);
+	dvdt = divpt2(addpt2(addpt2(a.dv, mulpt2(addpt2(b.dv, c.dv), 2)), d.dv), 6);
 
-	s->x += dxdt*Δt;
-	s->v += dvdt*Δt;
+	s->p = addpt2(s->p, mulpt2(dxdt, Δt));
+	s->v = addpt2(s->v, mulpt2(dvdt, Δt));
 }
 
 /*
