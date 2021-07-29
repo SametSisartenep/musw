@@ -51,7 +51,7 @@ lobby_getcouple(Lobby *l, Player *couple)
 }
 
 static void
-lobby_healthcheck(Lobby *l)
+lobby_purge(Lobby *l)
 {
 	char status[48], buf[16];
 	int i, fd;
@@ -86,7 +86,7 @@ newlobby(void)
 	l->takeseat = lobby_takeseat;
 	l->getcouple = lobby_getcouple;
 	l->leaveseat = lobby_leaveseat;
-	l->healthcheck = lobby_healthcheck;
+	l->purge = lobby_purge;
 
 	return l;
 }

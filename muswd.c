@@ -107,7 +107,7 @@ threadsim(void *)
 	io = ioproc();
 
 	for(;;){
-		lobby->healthcheck(lobby);
+		lobby->purge(lobby);
 
 		if(lobby->getcouple(lobby, couple) != -1){
 			newparty(couple);

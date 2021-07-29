@@ -4,6 +4,8 @@
 #include "dat.h"
 #include "fns.h"
 
+static double G = 6.674e-11;
+
 /*
  *	Dynamics stepper
  */

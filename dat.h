@@ -16,6 +16,13 @@ typedef enum
 	WEDGE
 } Kind;
 
+enum {
+	SCRW	= 640,
+	SCRH	= 480,
+	SCRWB	= SCRW+2*Borderwidth,
+	SCRHB	= SCRH+2*Borderwidth
+};
+
 typedef struct Vector Vector;
 typedef struct VModel VModel;
 typedef struct Sprite Sprite;
@@ -126,7 +133,7 @@ struct Lobby
 	int (*takeseat)(Lobby*, char*, int, int);
 	int (*leaveseat)(Lobby*, ulong);
 	int (*getcouple)(Lobby*, Player*);
-	void (*healthcheck)(Lobby*);
+	void (*purge)(Lobby*);
 };
 
 struct Party

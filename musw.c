@@ -35,6 +35,7 @@ struct Ball
 };
 
 Ball bouncer;
+char winspec[32];
 int debug;
 
 
@@ -142,6 +143,8 @@ redraw(void)
 void
 resize(void)
 {
+	int fd;
+
 	if(debug)
 		fprint(2, "resizing\n");
 
@@ -149,6 +152,15 @@ resize(void)
 	if(getwindow(display, Refnone) < 0)
 		sysfatal("resize failed");
 	unlockdisplay(display);
+
+	if(Dx(screen->r) != SCRW || Dy(screen->r) != SCRH){
+		fd = open("/dev/wctl", OWRITE);
+		if(fd >= 0){
+			fprint(fd, "resize %s", winspec);
+			close(fd);
+		}
+	}
+
 	redraw();
 }
 
@@ -178,7 +190,8 @@ threadmain(int argc, char *argv[])
 		usage();
 	server = argv[0];
 
-	if(newwindow("-dx 640 -dy 480") < 0)
+	snprint(winspec, sizeof winspec, "-dx %d -dy %d", SCRWB, SCRHB);
+	if(newwindow(winspec) < 0)
 		sysfatal("newwindow: %r");
 	if(initdraw(nil, nil, nil) < 0)
 		sysfatal("initdraw: %r");

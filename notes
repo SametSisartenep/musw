@@ -1,0 +1,17 @@
+• there's, at most, two players waiting in the lobby at a given time.
+it makes no sense to allocate more than two seats since the threadsim
+will consume them whenever they are ready to join the party.  i'm
+thinking of using channels to synchronize the two threads, so
+threadsim doesn't loop doing nothing (but sleeping) until at least a
+couple of players join.
+
+• the integrator has to operate with vectors and the different objects
+in the universe, some of which may require their own governing laws.
+
+• think of a way to pack the bullets efficiently.  will they be part
+of the global state broadcast?  what does the client need to know to
+render and manage them?
+
+• it could be beneficial to do dynamics in the client as well, which
+means sending more data, and probably require a tighter sync, but a
+smoother user experience.
