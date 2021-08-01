@@ -28,20 +28,34 @@ universe_reset(Universe *u)
 void
 inituniverse(Universe *u)
 {
-	u->ships[0].p = Pt2(SCRW/2-50,SCRH/2-50,1);
-	u->ships[0].θ = (180+45)*DEG;
+	int i;
+	double θ;
+	Point2 aimstar;
+
+	u->star.p = Pt2(0,0,1);
+	u->star.mass = 5.97e24; /* earth's mass */
+
+	θ = ntruerand(360)*DEG;
+	for(i = 0; i < nelem(u->ships); i++){
+		θ += i*180*DEG;
+		Matrix R = {
+			cos(θ), -sin(θ), 0,
+			sin(θ),  cos(θ), 0,
+			0, 0, 1
+		};
+
+		u->ships[i].p = addpt2(Pt2(0,0,1), mulpt2(xform(Vec2(1,0), R), 200));
+		aimstar = subpt2(u->star.p, u->ships[i].p);
+		u->ships[i].θ = atan2(aimstar.y, aimstar.x);
+	}
+
 	u->ships[0].mass = 10e3; /* 10 tons */
 	u->ships[0].kind = NEEDLE;
 	u->ships[0].fuel = 100;
 
-	u->ships[1].p = Pt2(-SCRW/2+50,-SCRH/2+50,1);
-	u->ships[1].θ = 45*DEG;
 	u->ships[1].mass = 40e3; /* 40 tons */
 	u->ships[1].kind = WEDGE;
 	u->ships[1].fuel = 200;
-
-	u->star.p = Pt2(0,0,1);
-	u->star.mass = 5.97e24; /* earth's mass */
 }
 
 Universe *

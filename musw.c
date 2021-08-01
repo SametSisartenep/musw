@@ -124,7 +124,7 @@ drawship(Ship *ship, Image *dst)
 		0, 0, 1
 	}, R = {
 		cos(ship->θ), -sin(ship->θ), 0,
-		sin(ship->θ), cos(ship->θ), 0,
+		sin(ship->θ),  cos(ship->θ), 0,
 		0, 0, 1
 	};
 
