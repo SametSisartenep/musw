@@ -66,20 +66,24 @@ void
 broadcaststate(void)
 {
 	int i, n;
-	uchar buf[256];
+	uchar buf[1024];
 	Player *player;
-	Party *p, *np;
+	Party *p;
 
 	for(p = theparty.next; p != &theparty; p = p->next){
-		n = pack(buf, sizeof buf, "PP", p->state.p, p->state.v);
+		n = pack(buf, sizeof buf, "PPdPdP",
+			p->state.p,
+			p->u->ships[0].p, p->u->ships[0].θ,
+			p->u->ships[1].p, p->u->ships[1].θ,
+			p->u->star.p);
 
 		for(i = 0; i < nelem(p->players); i++){
 			if(write(p->players[i].conn.data, buf, n) != n){
 				player = &p->players[i^1];
 				lobby->takeseat(lobby, player->conn.dir, player->conn.ctl, player->conn.data);
-				np = p->prev;
-				delparty(p);
-				p = np;
+				/* step back and delete the spoiled party */
+				p = p->prev;
+				delparty(p->next);
 				break;
 			}
 		}
@@ -112,7 +116,8 @@ threadsim(void *)
 
 		if(lobby->getcouple(lobby, couple) != -1){
 			newparty(couple);
-			resetsim(theparty.prev); /* reset the new party */
+			resetsim(theparty.prev);
+			theparty.prev->u->reset(theparty.prev->u);
 		}
 
 		now = nanosec();
@@ -120,7 +125,14 @@ threadsim(void *)
 		then = now;
 
 		for(p = theparty.next; p != &theparty; p = p->next){
+			p->u->timeacc += frametime/1e9;
 			p->state.timeacc += frametime/1e9;
+
+			while(p->u->timeacc >= Δt){
+				p->u->step(p->u, Δt);
+				p->u->timeacc -= Δt;
+				p->u->t += Δt;
+			}
 
 			while(p->state.timeacc >= Δt){
 				integrate(&p->state, p->state.t, Δt);
@@ -131,7 +143,7 @@ threadsim(void *)
 
 		broadcaststate();
 
-		iosleep(io, FPS2MS(70));
+		iosleep(io, HZ2MS(70));
 	}
 }
 
@@ -158,10 +170,17 @@ fprintstates(int fd)
 {
 	ulong i = 0;
 	Party *p;
+	Ship *s;
 
-	for(p = theparty.next; p != &theparty; p = p->next, i++)
-		fprint(fd, "%lud [p %v	v %v]\n",
+	for(p = theparty.next; p != &theparty; p = p->next, i++){
+		fprint(fd, "%lud p %v	v %v\n",
 			i, p->state.p, p->state.v);
+		for(s = &p->u->ships[0]; s-p->u->ships < nelem(p->u->ships); s++){
+			fprint(fd, "%lud s%lld k%d p %v v %v θ %g ω %g m %g f %d\n",
+				i, s-p->u->ships, s->kind, s->p, s->v, s->θ, s->ω, s->mass, s->fuel);
+		}
+		fprint(fd, "%lud S p %v m %g\n", i, p->u->star.p, p->u->star.mass);
+	}
 }
 
 

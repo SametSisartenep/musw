@@ -23,6 +23,8 @@ newparty(Player *players)
 	p->players[0] = players[0];
 	p->players[1] = players[1];
 
+	p->u = newuniverse();
+
 	addparty(p);
 
 	return p;
@@ -33,6 +35,7 @@ delparty(Party *p)
 {
 	p->next->prev = p->prev;
 	p->prev->next = p->next;
+	deluniverse(p->u);
 	free(p);
 }
 

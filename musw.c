@@ -1,5 +1,6 @@
 #include <u.h>
 #include <libc.h>
+#include <bio.h>
 #include <thread.h>
 #include <draw.h>
 #include <mouse.h>
@@ -27,7 +28,7 @@ Keymap kmap[] = {
 	{.key = 'y',	.op = Ksay},
 	{.key = 'q',	.op = Kquit}
 };
-ulong kup, kdown;
+ulong kdown;
 
 typedef struct Ball Ball;
 struct Ball
@@ -35,10 +36,115 @@ struct Ball
 	Point2 p, v;
 };
 
+RFrame screenrf;
 Ball bouncer;
+Universe *universe;
+VModel *needlemdl;
 char winspec[32];
 int debug;
 
+
+Point
+toscreen(Point2 p)
+{
+	p = invrframexform(p, screenrf);
+	return Pt(p.x,p.y);
+}
+
+Point2
+fromscreen(Point p)
+{
+	return rframexform(Pt2(p.x,p.y,1), screenrf);
+}
+
+/*
+ * readvmodel and drawship are testing routines
+ * that will later be implemented as VModel methods.
+ */
+VModel *
+readvmodel(char *file)
+{
+	ulong lineno;
+	char *s, *args[2];
+	Biobuf *bin;
+	VModel *mdl;
+
+	bin = Bopen(file, OREAD);
+	if(bin == nil)
+		sysfatal("Bopen: %r");
+
+	mdl = emalloc(sizeof *mdl);
+	mdl->pts = nil;
+	mdl->npts = 0;
+	mdl->strokefmt = nil;
+
+	lineno = 0;
+	while(s = Brdline(bin, '\n')){
+		s[Blinelen(bin)-1] = 0;
+		lineno++;
+
+		switch(*s++){
+		case '#':
+			continue;
+		case 'v':
+			if(tokenize(s, args, nelem(args)) != nelem(args)){
+				werrstr("syntax error: %s:%lud 'v' expects %d args",
+					file, lineno, nelem(args));
+				free(mdl);
+				Bterm(bin);
+				return nil;
+			}
+			mdl->pts = erealloc(mdl->pts, ++mdl->npts*sizeof(Point2));
+			mdl->pts[mdl->npts-1].x = strtod(args[0], nil);
+			mdl->pts[mdl->npts-1].y = strtod(args[1], nil);
+			mdl->pts[mdl->npts-1].w = 1;
+			break;
+		case 'l':
+		case 'c':
+			mdl->strokefmt = strdup(s-1);
+			break;
+		}
+	}
+	Bterm(bin);
+
+	return mdl;
+}
+
+void
+drawship(Ship *ship, Image *dst)
+{
+	int i;
+	char *s;
+	Point pts[3];
+	VModel *mdl;
+	Point2 *p;
+	Matrix T = {
+		1, 0, ship->p.x,
+		0, 1, ship->p.y,
+		0, 0, 1
+	}, R = {
+		cos(ship->θ), -sin(ship->θ), 0,
+		sin(ship->θ), cos(ship->θ), 0,
+		0, 0, 1
+	};
+
+	mulm(T, R);
+	mdl = ship->mdl;
+	p = mdl->pts;
+	for(s = mdl->strokefmt; s != 0 && p-mdl->pts < mdl->npts; s++)
+		switch(*s){
+		case 'l':
+			line(dst, toscreen(xform(p[0], T)), toscreen(xform(p[1], T)), 0, 0, 0, display->white, ZP);
+			p += 2;
+			break;
+		case 'c':
+			for(i = 0; i < nelem(pts); i++)
+				pts[i] = toscreen(xform(p[i], T));
+			bezspline(dst, pts, nelem(pts), 0, 0, 0, display->white, ZP);
+			p += 3;
+			break;
+		}
+}
 
 void
 kbdproc(void *)
@@ -84,18 +190,17 @@ kbdproc(void *)
 					break;
 				}
 		}
-		kup = ~kdown;
 
 		if(debug)
-			fprint(2, "kup   %.*lub\nkdown %.*lub\n",
-				sizeof(kup)*8, kup, sizeof(kdown)*8, kdown);
+			fprint(2, "kdown %.*lub\n",
+				sizeof(kdown)*8, kdown);
 	}
 }
 
 void
 threadnetrecv(void *arg)
 {
-	uchar buf[256];
+	uchar buf[1024];
 	int fd, n;
 	Ioproc *io;
 
@@ -103,10 +208,10 @@ threadnetrecv(void *arg)
 	io = ioproc();
 
 	while((n = ioread(io, fd, buf, sizeof buf)) > 0){
-		unpack(buf, n, "PP", &bouncer.p, &bouncer.v);
-
-		if(debug)
-			fprint(2, "bouncer %v %v\n", bouncer.p, bouncer.v);
+		unpack(buf, n, "PPdPdP", &bouncer.p,
+			&universe->ships[0].p, &universe->ships[0].θ,
+			&universe->ships[1].p, &universe->ships[1].θ,
+			&universe->star.p);
 	}
 	closeioproc(io);
 }
@@ -135,7 +240,11 @@ redraw(void)
 	lockdisplay(display);
 
 	draw(screen, screen->r, display->black, nil, ZP);
-	fillellipse(screen, addpt(screen->r.min,Pt(Dx(screen->r)/2,Dy(screen->r)/2+bouncer.p.y)), 2, 2, display->white, ZP);
+	fillellipse(screen, toscreen(bouncer.p), 2, 2, display->white, ZP);
+
+	drawship(&universe->ships[0], screen);
+	drawship(&universe->ships[1], screen);
+	fillellipse(screen, toscreen(universe->star.p), 4, 4, display->white, ZP);
 
 	flushimage(display, 1);
 	unlockdisplay(display);
@@ -153,6 +262,8 @@ resize(void)
 	if(getwindow(display, Refnone) < 0)
 		sysfatal("resize failed");
 	unlockdisplay(display);
+
+	screenrf.p = Pt2(screen->r.min.x+Dx(screen->r)/2,screen->r.max.y-Dy(screen->r)/2,1);
 
 	/* ignore move events */
 	if(Dx(screen->r) != SCRW || Dy(screen->r) != SCRH){
@@ -203,11 +314,22 @@ threadmain(int argc, char *argv[])
 	display->locking = 1;
 	unlockdisplay(display);
 
+	screenrf.p = Pt2(screen->r.min.x+Dx(screen->r)/2,screen->r.max.y-Dy(screen->r)/2,1);
+	screenrf.bx = Vec2(1, 0);
+	screenrf.by = Vec2(0,-1);
+
 	proccreate(kbdproc, nil, 4096);
 
 	fd = dial(server, nil, nil, nil);
 	if(fd < 0)
 		sysfatal("dial: %r");
+
+	universe = newuniverse();
+	needlemdl = readvmodel("assets/mdl/needle.vmdl");
+	if(needlemdl == nil)
+		sysfatal("readvmodel: %r");
+	universe->ships[0].mdl = needlemdl;
+	universe->ships[1].mdl = needlemdl;
 
 	threadcreate(threadnetrecv, &fd, 4096);
 	threadcreate(threadresize, mc, 4096);
@@ -215,6 +337,6 @@ threadmain(int argc, char *argv[])
 	io = ioproc();
 	for(;;){
 		redraw();
-		iosleep(io, FPS2MS(30));
+		iosleep(io, HZ2MS(30));
 	}
 }

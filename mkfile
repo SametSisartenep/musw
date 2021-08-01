@@ -14,6 +14,7 @@ OFILES=\
 	lobby.$O\
 	party.$O\
 	sprite.$O\
+	universe.$O\
 
 HFILES=\
 	dat.h\

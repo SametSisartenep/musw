@@ -34,6 +34,7 @@ typedef struct GameState GameState;
 typedef struct Derivative Derivative;
 typedef struct Conn Conn;
 typedef struct Player Player;
+typedef struct PInput PInput;
 typedef struct Lobby Lobby;
 typedef struct Party Party;
 
@@ -68,8 +69,8 @@ struct Sprite
 struct Particle
 {
 	Point2 p, v;
-	double yaw;
-	double mass;
+	double θ, ω;
+	double mass; /* kg */
 };
 
 struct Bullet
@@ -83,6 +84,7 @@ struct Ship
 {
 	Particle;
 	Kind kind;
+	int fuel;
 	Bullet rounds[10];
 	VModel *mdl;
 	Matrix mdlxform;
@@ -98,8 +100,10 @@ struct Universe
 {
 	Ship ships[2];
 	Star star;
+	double t, timeacc;
 
-	int (*step)(Universe*);
+	void (*step)(Universe*, double);
+	void (*reset)(Universe*);
 };
 
 struct GameState
@@ -119,12 +123,19 @@ struct Conn
 	char dir[40];
 	int ctl;
 	int data;
+	int status;
+};
+
+struct PInput
+{
+	ulong kdown;
 };
 
 struct Player
 {
 	char *name;
 	Conn conn;
+	PInput oldinput, input;
 };
 
 struct Lobby

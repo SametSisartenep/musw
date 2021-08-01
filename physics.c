@@ -18,6 +18,25 @@ accel(GameState *s, double)
 	return Vec2(0, -k*s->p.y - b*s->v.y);
 }
 
+/*
+ * XXX: remember to take thrust into account, based on user input.
+ */
+static Point2
+accelship(Universe *u, Ship *s, double)
+{
+	double g, d;
+
+	d = vec2len(subpt2(u->star.p, s->p));
+	g = G*u->star.mass/(d*d);
+	return mulpt2(normvec2(subpt2(u->star.p, s->p)), g);
+}
+
+static Point2
+accelbullet(Universe *, Bullet *, double)
+{
+	return Vec2(0,0);
+}
+
 static Derivative
 eval(GameState *s0, double t, double Δt, Derivative *d)
 {

@@ -1,4 +1,4 @@
-#define FPS2MS(fps)	(1000/(fps))
+#define HZ2MS(hz)	(1000/(hz))
 
 /*
  * alloc
@@ -37,3 +37,9 @@ Party *newparty(Player[2]);
 void delparty(Party*);
 void addparty(Party*);
 
+/*
+ * universe
+ */
+Universe *newuniverse(void);
+void deluniverse(Universe*);
+void inituniverse(Universe*);
