@@ -244,7 +244,7 @@ redraw(void)
 
 	drawship(&universe->ships[0], screen);
 	drawship(&universe->ships[1], screen);
-	fillellipse(screen, toscreen(universe->star.p), 4, 4, display->white, ZP);
+	universe->star.spr->draw(universe->star.spr, screen, subpt(toscreen(universe->star.p), Pt(16,16)));
 
 	flushimage(display, 1);
 	unlockdisplay(display);
@@ -287,6 +287,8 @@ usage(void)
 void
 threadmain(int argc, char *argv[])
 {
+	uvlong then, now;
+	double frametime;
 	char *server;
 	int fd;
 	Mousectl *mc;
@@ -330,13 +332,22 @@ threadmain(int argc, char *argv[])
 		sysfatal("readvmodel: %r");
 	universe->ships[0].mdl = needlemdl;
 	universe->ships[1].mdl = needlemdl;
+	universe->star.spr = readsprite("assets/spr/earth.pic", ZP, Rect(0,0,32,32), 5, 20e3);
 
 	threadcreate(threadnetrecv, &fd, 4096);
 	threadcreate(threadresize, mc, 4096);
 
+	then = nanosec();
 	io = ioproc();
 	for(;;){
+		now = nanosec();
+		frametime = now - then;
+		then = now;
+
+		universe->star.spr->step(universe->star.spr, frametime/1e6);
+
 		redraw();
+
 		iosleep(io, HZ2MS(30));
 	}
 }

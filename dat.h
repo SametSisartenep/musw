@@ -93,7 +93,7 @@ struct Ship
 struct Star
 {
 	Particle;
-	Sprite spr;
+	Sprite *spr;
 };
 
 struct Universe
