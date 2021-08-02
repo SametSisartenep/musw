@@ -18,25 +18,6 @@ accel(GameState *s, double)
 	return Vec2(0, -k*s->p.y - b*s->v.y);
 }
 
-/*
- * XXX: remember to take thrust into account, based on user input.
- */
-static Point2
-accelship(Universe *u, Ship *s, double)
-{
-	double g, d;
-
-	d = vec2len(subpt2(u->star.p, s->p));
-	g = G*u->star.mass/(d*d);
-	return mulpt2(normvec2(subpt2(u->star.p, s->p)), g);
-}
-
-static Point2
-accelbullet(Universe *, Bullet *, double)
-{
-	return Vec2(0,0);
-}
-
 static Derivative
 eval(GameState *s0, double t, double Δt, Derivative *d)
 {
@@ -112,4 +93,76 @@ integrate(GameState *s, double t, double Δt)
 	//euler0(s, t, Δt);
 	//euler1(s, t, Δt);
 	rk4(s, t, Δt);
+}
+
+/*
+ *
+ * UNIVERSE MIGRATION. KEEP CALM AND FASTEN YOUR SEAT BELTS.
+ *
+ */
+
+/*
+ * XXX: remember to take thrust into account, based on user input.
+ */
+static Point2
+accelship(Universe *u, Particle *p, double)
+{
+	double g, d;
+
+	d = vec2len(subpt2(u->star.p, p->p));
+	d *= 1e5; /* scale to the 100km/px range */
+	g = G*u->star.mass/(d*d);
+	return mulpt2(normvec2(subpt2(u->star.p, p->p)), g);
+}
+
+static Point2
+accelbullet(Universe *, Particle *, double)
+{
+	return Vec2(0,0);
+}
+
+static Derivative
+evalu(Universe *u, Particle *p0, double t, double Δt, Derivative *d, Point2 (*a)(Universe*,Particle*,double))
+{
+	Particle p;
+	Derivative res;
+
+	p.p = addpt2(p0->p, mulpt2(d->dx, Δt));
+	p.v = addpt2(p0->v, mulpt2(d->dv, Δt));
+
+	res.dx = p.v;
+	res.dv = a(u, &p, t+Δt);
+	return res;
+}
+
+static void
+rk4u(Universe *u, Particle *p, double t, double Δt, Point2 (*acc)(Universe*,Particle*,double))
+{
+	static Derivative ZD = {0};
+	Derivative a, b, c, d;
+	Point2 dxdt, dvdt;
+
+	a = evalu(u, p, t, 0, &ZD, acc);
+	b = evalu(u, p, t, Δt/2, &a, acc);
+	c = evalu(u, p, t, Δt/2, &b, acc);
+	d = evalu(u, p, t, Δt, &c, acc);
+
+	dxdt = divpt2(addpt2(addpt2(a.dx, mulpt2(addpt2(b.dx, c.dx), 2)), d.dx), 6);
+	dvdt = divpt2(addpt2(addpt2(a.dv, mulpt2(addpt2(b.dv, c.dv), 2)), d.dv), 6);
+
+	p->p = addpt2(p->p, mulpt2(dxdt, Δt));
+	p->v = addpt2(p->v, mulpt2(dvdt, Δt));
+}
+
+void
+integrateu(Universe *u, double t, double Δt)
+{
+	int i, j;
+
+	for(i = 0; i < nelem(u->ships); i++){
+		rk4u(u, &u->ships[i], t, Δt, accelship);
+		for(j = 0; j < nelem(u->ships[i].rounds); j++)
+			if(u->ships[i].rounds[j].fired)
+				rk4u(u, &u->ships[i].rounds[j], t, Δt, accelbullet);
+	}
 }
