@@ -40,6 +40,7 @@ RFrame screenrf;
 Ball bouncer;
 Universe *universe;
 VModel *needlemdl;
+Channel *kchan;
 char winspec[32];
 int debug;
 
@@ -194,6 +195,8 @@ kbdproc(void *)
 		if(debug)
 			fprint(2, "kdown %.*lub\n",
 				sizeof(kdown)*8, kdown);
+
+		nbsendul(kchan, kdown);
 	}
 }
 
@@ -204,7 +207,7 @@ threadnetrecv(void *arg)
 	int fd, n;
 	Ioproc *io;
 
-	fd = *((int*)arg);
+	fd = *(int*)arg;
 	io = ioproc();
 
 	while((n = ioread(io, fd, buf, sizeof buf)) > 0){
@@ -214,6 +217,23 @@ threadnetrecv(void *arg)
 			&universe->star.p);
 	}
 	closeioproc(io);
+}
+
+void
+threadnetsend(void *arg)
+{
+	uchar buf[1024];
+	int fd, n;
+	ulong kdown;
+
+	fd = *(int*)arg;
+
+	for(;;){
+		kdown = recvul(kchan);
+		n = pack(buf, sizeof buf, "k", kdown);
+		if(write(fd, buf, n) != n)
+			sysfatal("write: %r");
+	}
 }
 
 void resize(void);
@@ -320,6 +340,7 @@ threadmain(int argc, char *argv[])
 	screenrf.bx = Vec2(1, 0);
 	screenrf.by = Vec2(0,-1);
 
+	kchan = chancreate(sizeof kdown, 1);
 	proccreate(kbdproc, nil, 4096);
 
 	fd = dial(server, nil, nil, nil);
@@ -335,6 +356,7 @@ threadmain(int argc, char *argv[])
 	universe->star.spr = readsprite("assets/spr/earth.pic", ZP, Rect(0,0,32,32), 5, 20e3);
 
 	threadcreate(threadnetrecv, &fd, 4096);
+	threadcreate(threadnetsend, &fd, 4096);
 	threadcreate(threadresize, mc, 4096);
 
 	then = nanosec();

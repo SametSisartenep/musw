@@ -21,6 +21,7 @@ static int
 vpack(uchar *p, int n, char *fmt, va_list a)
 {
 	uchar *p0 = p, *e = p+n;
+	ulong k;
 	FPdbleword d;
 	Point2 P;
 
@@ -45,6 +46,16 @@ vpack(uchar *p, int n, char *fmt, va_list a)
 				goto err;
 
 			pack(p, n, "ddd", P.x, P.y, P.w), p += 3*8;
+
+			break;
+		case 'k':
+			k = va_arg(a, ulong);
+
+			if(p+4 > e)
+				goto err;
+
+			put4(p, k), p += 4;
+
 			break;
 		}
 	}
@@ -56,6 +67,7 @@ static int
 vunpack(uchar *p, int n, char *fmt, va_list a)
 {
 	uchar *p0 = p, *e = p+n;
+	ulong k;
 	FPdbleword d;
 	Point2 P;
 
@@ -78,6 +90,16 @@ vunpack(uchar *p, int n, char *fmt, va_list a)
 
 			unpack(p, n, "ddd", &P.x, &P.y, &P.w), p += 3*8;
 			*va_arg(a, Point2*) = P;
+
+			break;
+		case 'k':
+			if(p+4 > e)
+				goto err;
+
+			k = get4(p), p += 4;
+			*va_arg(a, ulong*) = k;
+
+			break;
 		}
 	}
 err:

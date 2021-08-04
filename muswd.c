@@ -29,9 +29,28 @@ iolisten(Ioproc *io, char *adir, char *ldir)
 }
 
 void
+procnetrecv(void *arg)
+{
+	uchar buf[1024];
+	int fd, n;
+	ulong kdown;
+	Ioproc *io;
+
+	fd = *(int*)arg;
+	io = ioproc();
+
+	while((n = ioread(io, fd, buf, sizeof buf)) > 0){
+		unpack(buf, n, "k", &kdown);
+		fprint(2, "%d (%d) [%d] rcvd %.*lub\n", threadid(), threadpid(threadid()), getpid(), sizeof(kdown)*8, kdown);
+	}
+	closeioproc(io);
+	threadexits(nil);
+}
+
+void
 threadlisten(void *arg)
 {
-	int lcfd, dfd;
+	int lcfd, dfd, pid;
 	char *adir, ldir[40];
 	Ioproc *io;
 
@@ -56,9 +75,10 @@ threadlisten(void *arg)
 
 		lobby->takeseat(lobby, ldir, lcfd, dfd);
 
+		pid = proccreate(procnetrecv, &dfd, 4096);
+
 		if(debug)
-			fprint(2, "added conn for %lud conns at %lud max\n",
-				lobby->nseats, lobby->cap);
+			fprint(2, "forked %d for new conn\n", pid);
 	}
 }
 
