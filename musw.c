@@ -40,6 +40,7 @@ RFrame screenrf;
 Ball bouncer;
 Universe *universe;
 VModel *needlemdl;
+Image *skymap;
 Channel *kchan;
 char winspec[32];
 int debug;
@@ -255,11 +256,29 @@ threadresize(void *arg)
 }
 
 void
+initskymap(void)
+{
+	int fd;
+
+	fd = open("assets/bg/defskymap.pic", OREAD);
+	if(fd < 0)
+		goto darkness;
+
+	skymap = readimage(display, fd, 1);
+	if(skymap == nil){
+darkness:
+		fprint(2, "couldn't read a sky map. falling back to darkness...\n");
+		skymap = display->black;
+	}
+	close(fd);
+}
+
+void
 redraw(void)
 {
 	lockdisplay(display);
 
-	draw(screen, screen->r, display->black, nil, ZP);
+	draw(screen, screen->r, skymap, nil, ZP);
 	fillellipse(screen, toscreen(bouncer.p), 2, 2, display->white, ZP);
 
 	drawship(&universe->ships[0], screen);
@@ -354,6 +373,8 @@ threadmain(int argc, char *argv[])
 	universe->ships[0].mdl = needlemdl;
 	universe->ships[1].mdl = needlemdl;
 	universe->star.spr = readsprite("assets/spr/earth.pic", ZP, Rect(0,0,32,32), 5, 20e3);
+
+	initskymap();
 
 	threadcreate(threadnetrecv, &fd, 4096);
 	threadcreate(threadnetsend, &fd, 4096);
