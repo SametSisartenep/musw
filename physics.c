@@ -136,6 +136,18 @@ evalu(Universe *u, Particle *p0, double t, double Δt, Derivative *d, Point2 (*a
 }
 
 static void
+euler1u(Universe *u, Particle *p, double t, double Δt)
+{
+	static Derivative ZD = {0};
+	Derivative d;
+
+	d = evalu(u, p, t, Δt, &ZD);
+
+	p->v = addpt2(p->v, mulpt2(d.dv, Δt));
+	p->p = addpt2(p->p, mulpt2(p->v, Δt));
+}
+
+static void
 rk4u(Universe *u, Particle *p, double t, double Δt, Point2 (*acc)(Universe*,Particle*,double))
 {
 	static Derivative ZD = {0};
@@ -163,6 +175,6 @@ integrateu(Universe *u, double t, double Δt)
 		rk4u(u, &u->ships[i], t, Δt, accelship);
 		for(j = 0; j < nelem(u->ships[i].rounds); j++)
 			if(u->ships[i].rounds[j].fired)
-				rk4u(u, &u->ships[i].rounds[j], t, Δt, accelbullet);
+				euler1u(u, &u->ships[i].rounds[j], t, Δt, accelbullet);
 	}
 }
