@@ -1,0 +1,3 @@
+#!/bin/rc
+rfork ne
+hget 'https://www.fourmilab.ch/cgi-bin/Yourtel?date=0&utc=1998%2F02%2F14+20%3A55%3A01&jd=2450859.37154&lon=0h&lat=0%B0&ns=North&fov=45%B0&deepm=5.0&limag=6.0&starnm=3.0&starbm=5.0&showmb=-1.5&showmd=6.0&imgsize=640&dynimg=y&fontscale=1.0&scheme=0&elements=' | gif -tc | crop -r 0 0 640 480 > assets/bg/defskymap.pic
