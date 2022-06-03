@@ -30,7 +30,6 @@ typedef struct Bullet Bullet;
 typedef struct Ship Ship;
 typedef struct Star Star;
 typedef struct Universe Universe;
-typedef struct GameState GameState;
 typedef struct Derivative Derivative;
 typedef struct Conn Conn;
 typedef struct Player Player;
@@ -106,12 +105,6 @@ struct Universe
 	void (*reset)(Universe*);
 };
 
-struct GameState
-{
-	double t, timeacc;
-	Point2 p, v;
-};
-
 struct Derivative
 {
 	Point2 dx; /* v */
@@ -155,9 +148,6 @@ struct Party
 	Player players[2];	/* the needle and the wedge */
 	Universe *u;
 	Party *prev, *next;
-
-	/* testing */
-	GameState state;
 };
 
 

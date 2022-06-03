@@ -91,8 +91,7 @@ broadcaststate(void)
 	Party *p;
 
 	for(p = theparty.next; p != &theparty; p = p->next){
-		n = pack(buf, sizeof buf, "PPdPdP",
-			p->state.p,
+		n = pack(buf, sizeof buf, "PdPdP",
 			p->u->ships[0].p, p->u->ships[0].θ,
 			p->u->ships[1].p, p->u->ships[1].θ,
 			p->u->star.p);
@@ -109,13 +108,6 @@ broadcaststate(void)
 		}
 	}
 
-}
-
-void
-resetsim(Party *p)
-{
-	memset(&p->state, 0, sizeof p->state);
-	p->state.p = Pt2(0,100,1);
 }
 
 void
@@ -136,7 +128,6 @@ threadsim(void *)
 
 		if(lobby->getcouple(lobby, couple) != -1){
 			newparty(couple);
-			resetsim(theparty.prev);
 			theparty.prev->u->reset(theparty.prev->u);
 		}
 
@@ -146,18 +137,11 @@ threadsim(void *)
 
 		for(p = theparty.next; p != &theparty; p = p->next){
 			p->u->timeacc += frametime/1e9;
-			p->state.timeacc += frametime/1e9;
 
 			while(p->u->timeacc >= Δt){
 				p->u->step(p->u, Δt);
 				p->u->timeacc -= Δt;
 				p->u->t += Δt;
-			}
-
-			while(p->state.timeacc >= Δt){
-				integrate(&p->state, p->state.t, Δt);
-				p->state.timeacc -= Δt;
-				p->state.t += Δt;
 			}
 		}
 
@@ -193,8 +177,6 @@ fprintstates(int fd)
 	Ship *s;
 
 	for(p = theparty.next; p != &theparty; p = p->next, i++){
-		fprint(fd, "%lud p %v	v %v\n",
-			i, p->state.p, p->state.v);
 		for(s = &p->u->ships[0]; s-p->u->ships < nelem(p->u->ships); s++){
 			fprint(fd, "%lud s%lld k%d p %v v %v θ %g ω %g m %g f %d\n",
 				i, s-p->u->ships, s->kind, s->p, s->v, s->θ, s->ω, s->mass, s->fuel);

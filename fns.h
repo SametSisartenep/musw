@@ -10,8 +10,7 @@ void *erealloc(void*, ulong);
 /*
  * physics
  */
-void integrate(GameState*, double, double);
-void integrateu(Universe*, double, double);
+void integrate(Universe*, double, double);
 
 /*
  * nanosec

@@ -7,108 +7,16 @@
 
 static double G = 6.674e-11;
 
+
 /*
  *	Dynamics stepper
- */
-static Point2
-accel(GameState *s, double)
-{
-	static double k = 15, b = 0.1;
-
-	return Vec2(0, -k*s->p.y - b*s->v.y);
-}
-
-static Derivative
-eval(GameState *s0, double t, double Δt, Derivative *d)
-{
-	GameState s;
-	Derivative res;
-
-	s.p = addpt2(s0->p, mulpt2(d->dx, Δt));
-	s.v = addpt2(s0->v, mulpt2(d->dv, Δt));
-
-	res.dx = s.v;
-	res.dv = accel(&s, t+Δt);
-	return res;
-}
-
-/*
- *	Explicit Euler Integrator
- */
-static void
-euler0(GameState *s, double t, double Δt)
-{
-	static Derivative ZD = {0};
-	Derivative d;
-
-	d = eval(s, t, Δt, &ZD);
-
-	s->p = addpt2(s->p, mulpt2(d.dx, Δt));
-	s->v = addpt2(s->v, mulpt2(d.dv, Δt));
-}
-
-/*
- *	Semi-implicit Euler Integrator
- */
-static void
-euler1(GameState *s, double t, double Δt)
-{
-	static Derivative ZD = {0};
-	Derivative d;
-
-	d = eval(s, t, Δt, &ZD);
-
-	s->v = addpt2(s->v, mulpt2(d.dv, Δt));
-	s->p = addpt2(s->p, mulpt2(s->v, Δt));
-}
-
-/*
- *	RK4 Integrator
- */
-static void
-rk4(GameState *s, double t, double Δt)
-{
-	static Derivative ZD = {0};
-	Derivative a, b, c, d;
-	Point2 dxdt, dvdt;
-
-	a = eval(s, t, 0, &ZD);
-	b = eval(s, t, Δt/2, &a);
-	c = eval(s, t, Δt/2, &b);
-	d = eval(s, t, Δt, &c);
-
-	dxdt = divpt2(addpt2(addpt2(a.dx, mulpt2(addpt2(b.dx, c.dx), 2)), d.dx), 6);
-	dvdt = divpt2(addpt2(addpt2(a.dv, mulpt2(addpt2(b.dv, c.dv), 2)), d.dv), 6);
-
-	s->p = addpt2(s->p, mulpt2(dxdt, Δt));
-	s->v = addpt2(s->v, mulpt2(dvdt, Δt));
-}
-
-/*
- *	The Integrator
- */
-void
-integrate(GameState *s, double t, double Δt)
-{
-	//euler0(s, t, Δt);
-	//euler1(s, t, Δt);
-	rk4(s, t, Δt);
-}
-
-/*
- *
- * UNIVERSE MIGRATION. KEEP CALM AND FASTEN YOUR SEAT BELTS.
- *
- */
-
-/*
- * XXX: remember to take thrust into account, based on user input.
  */
 static Point2
 accelship(Universe *u, Particle *p, double)
 {
 	double g, d;
 
+	/* XXX: remember to take thrust into account, based on user input. */
 	d = vec2len(subpt2(u->star.p, p->p));
 	d *= 1e5; /* scale to the 100km/px range */
 	g = G*u->star.mass/(d*d);
@@ -122,7 +30,7 @@ accelbullet(Universe *, Particle *, double)
 }
 
 static Derivative
-evalu(Universe *u, Particle *p0, double t, double Δt, Derivative *d, Point2 (*a)(Universe*,Particle*,double))
+eval(Universe *u, Particle *p0, double t, double Δt, Derivative *d, Point2 (*accel)(Universe*,Particle*,double))
 {
 	Particle p;
 	Derivative res;
@@ -131,33 +39,39 @@ evalu(Universe *u, Particle *p0, double t, double Δt, Derivative *d, Point2 (*a
 	p.v = addpt2(p0->v, mulpt2(d->dv, Δt));
 
 	res.dx = p.v;
-	res.dv = a(u, &p, t+Δt);
+	res.dv = accel(u, &p, t+Δt);
 	return res;
 }
 
+/*
+ *	Semi-implicit Euler Integrator
+ */
 static void
-euler1u(Universe *u, Particle *p, double t, double Δt)
+euler1(Universe *u, Particle *p, double t, double Δt, Point2 (*accel)(Universe*,Particle*,double))
 {
 	static Derivative ZD = {0};
 	Derivative d;
 
-	d = evalu(u, p, t, Δt, &ZD);
+	d = eval(u, p, t, Δt, &ZD, accel);
 
 	p->v = addpt2(p->v, mulpt2(d.dv, Δt));
 	p->p = addpt2(p->p, mulpt2(p->v, Δt));
 }
 
+/*
+ *	RK4 Integrator
+ */
 static void
-rk4u(Universe *u, Particle *p, double t, double Δt, Point2 (*acc)(Universe*,Particle*,double))
+rk4(Universe *u, Particle *p, double t, double Δt, Point2 (*accel)(Universe*,Particle*,double))
 {
 	static Derivative ZD = {0};
 	Derivative a, b, c, d;
 	Point2 dxdt, dvdt;
 
-	a = evalu(u, p, t, 0, &ZD, acc);
-	b = evalu(u, p, t, Δt/2, &a, acc);
-	c = evalu(u, p, t, Δt/2, &b, acc);
-	d = evalu(u, p, t, Δt, &c, acc);
+	a = eval(u, p, t, 0, &ZD, accel);
+	b = eval(u, p, t, Δt/2, &a, accel);
+	c = eval(u, p, t, Δt/2, &b, accel);
+	d = eval(u, p, t, Δt, &c, accel);
 
 	dxdt = divpt2(addpt2(addpt2(a.dx, mulpt2(addpt2(b.dx, c.dx), 2)), d.dx), 6);
 	dvdt = divpt2(addpt2(addpt2(a.dv, mulpt2(addpt2(b.dv, c.dv), 2)), d.dv), 6);
@@ -166,15 +80,18 @@ rk4u(Universe *u, Particle *p, double t, double Δt, Point2 (*acc)(Universe*,Par
 	p->v = addpt2(p->v, mulpt2(dvdt, Δt));
 }
 
+/*
+ *	The Integrator
+ */
 void
-integrateu(Universe *u, double t, double Δt)
+integrate(Universe *u, double t, double Δt)
 {
 	int i, j;
 
 	for(i = 0; i < nelem(u->ships); i++){
-		rk4u(u, &u->ships[i], t, Δt, accelship);
+		rk4(u, &u->ships[i], t, Δt, accelship);
 		for(j = 0; j < nelem(u->ships[i].rounds); j++)
 			if(u->ships[i].rounds[j].fired)
-				euler1u(u, &u->ships[i].rounds[j], t, Δt, accelbullet);
+				euler1(u, &u->ships[i].rounds[j], t, Δt, accelbullet);
 	}
 }

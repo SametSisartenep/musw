@@ -8,7 +8,7 @@
 static void
 universe_step(Universe *u, double Δt)
 {
-	integrateu(u, u->t, Δt);
+	integrate(u, u->t, Δt);
 }
 
 static void

@@ -30,14 +30,7 @@ Keymap kmap[] = {
 };
 ulong kdown;
 
-typedef struct Ball Ball;
-struct Ball
-{
-	Point2 p, v;
-};
-
 RFrame screenrf;
-Ball bouncer;
 Universe *universe;
 VModel *needlemdl;
 Image *skymap;
@@ -123,11 +116,11 @@ drawship(Ship *ship, Image *dst)
 	Matrix T = {
 		1, 0, ship->p.x,
 		0, 1, ship->p.y,
-		0, 0, 1
+		0, 0, 1,
 	}, R = {
 		cos(ship->θ), -sin(ship->θ), 0,
 		sin(ship->θ),  cos(ship->θ), 0,
-		0, 0, 1
+		0, 0, 1,
 	};
 
 	mulm(T, R);
@@ -212,7 +205,7 @@ threadnetrecv(void *arg)
 	io = ioproc();
 
 	while((n = ioread(io, fd, buf, sizeof buf)) > 0){
-		unpack(buf, n, "PPdPdP", &bouncer.p,
+		unpack(buf, n, "PdPdP",
 			&universe->ships[0].p, &universe->ships[0].θ,
 			&universe->ships[1].p, &universe->ships[1].θ,
 			&universe->star.p);
@@ -279,7 +272,6 @@ redraw(void)
 	lockdisplay(display);
 
 	draw(screen, screen->r, skymap, nil, ZP);
-	fillellipse(screen, toscreen(bouncer.p), 2, 2, display->white, ZP);
 
 	drawship(&universe->ships[0], screen);
 	drawship(&universe->ships[1], screen);
