@@ -17,6 +17,7 @@ threadlisten(void *arg)
 {
 	uchar buf[1024], *p, *e;
 	int fd, n;
+	ushort rport, lport;
 	ulong kdown;
 	Ioproc *io;
 	Udphdr *udp;
@@ -32,9 +33,14 @@ threadlisten(void *arg)
 		p = buf+Udphdrsize;
 		e = buf+n;
 
+		rport = udp->rport[0]<<8 | udp->rport[1];
+		lport = udp->lport[0]<<8 | udp->lport[1];
+
 		unpack(p, e-p, "k", &kdown);
-		fprint(2, "%I → %I | %d (%d) rcvd %.*lub\n",
-			udp->raddr, udp->laddr, threadid(), getpid(), sizeof(kdown)*8, kdown);}
+		if(debug)
+			fprint(2, "%I!%d → %I!%d | %d (%d) rcvd %.*lub\n",
+				udp->raddr, rport, udp->laddr, lport, threadid(), getpid(), sizeof(kdown)*8, kdown);
+	}
 	closeioproc(io);
 }
 
