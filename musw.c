@@ -68,7 +68,7 @@ readvmodel(char *file)
 	if(bin == nil)
 		sysfatal("Bopen: %r");
 
-	mdl = emalloc(sizeof *mdl);
+	mdl = emalloc(sizeof(VModel));
 	mdl->pts = nil;
 	mdl->npts = 0;
 	mdl->strokefmt = nil;
@@ -354,6 +354,8 @@ threadmain(int argc, char *argv[])
 	kchan = chancreate(sizeof kdown, 1);
 	proccreate(kbdproc, nil, 4096);
 
+	/* TODO: draw a CONNECTING... sign */
+	/* TODO: set up an alarm for n secs and update the sign */
 	fd = dial(server, nil, nil, nil);
 	if(fd < 0)
 		sysfatal("dial: %r");

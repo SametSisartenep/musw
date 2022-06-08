@@ -83,7 +83,7 @@ newlobby(void)
 	Lobby *l;
 
 	l = emalloc(sizeof(Lobby));
-	memset(l, 0, sizeof(*l));
+	memset(l, 0, sizeof(Lobby));
 	l->takeseat = lobby_takeseat;
 	l->getcouple = lobby_getcouple;
 	l->leaveseat = lobby_leaveseat;

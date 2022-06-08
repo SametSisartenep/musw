@@ -1,5 +1,6 @@
 #include <u.h>
 #include <libc.h>
+#include <ip.h>
 #include <thread.h>
 #include <draw.h>
 #include "libgeometry/geometry.h"
@@ -11,75 +12,30 @@ int debug;
 Lobby *lobby;
 
 
-static long
-_iolisten(va_list *arg)
-{
-	char *adir, *ldir;
-
-	adir = va_arg(*arg, char*);
-	ldir = va_arg(*arg, char*);
-
-	return listen(adir, ldir);
-}
-
-long
-iolisten(Ioproc *io, char *adir, char *ldir)
-{
-	return iocall(io, _iolisten, adir, ldir);
-}
-
 void
-procnetrecv(void *arg)
+threadlisten(void *arg)
 {
-	uchar buf[1024];
+	uchar buf[1024], *p, *e;
 	int fd, n;
 	ulong kdown;
 	Ioproc *io;
+	Udphdr *udp;
 
 	fd = *(int*)arg;
 	io = ioproc();
 
 	while((n = ioread(io, fd, buf, sizeof buf)) > 0){
-		unpack(buf, n, "k", &kdown);
-		fprint(2, "%d (%d) [%d] rcvd %.*lub\n", threadid(), threadpid(threadid()), getpid(), sizeof(kdown)*8, kdown);
-	}
+		if(n < Udphdrsize)
+			continue;
+
+		udp = (Udphdr*)buf;
+		p = buf+Udphdrsize;
+		e = buf+n;
+
+		unpack(p, e-p, "k", &kdown);
+		fprint(2, "%I → %I | %d (%d) rcvd %.*lub\n",
+			udp->raddr, udp->laddr, threadid(), getpid(), sizeof(kdown)*8, kdown);}
 	closeioproc(io);
-	threadexits(nil);
-}
-
-void
-threadlisten(void *arg)
-{
-	int lcfd, dfd, pid;
-	char *adir, ldir[40];
-	Ioproc *io;
-
-	adir = arg;
-	io = ioproc();
-
-	for(;;){
-		lcfd = iolisten(io, adir, ldir);
-		if(lcfd < 0){
-			fprint(2, "iolisten: %r\n");
-			continue;
-		}
-		/*
-		 * handle connection and allocate user on a seat, ready
-		 * to play
-		 */
-		dfd = accept(lcfd, ldir);
-		if(dfd < 0){
-			fprint(2, "accept: %r\n");
-			continue;
-		}
-
-		lobby->takeseat(lobby, ldir, lcfd, dfd);
-
-		pid = proccreate(procnetrecv, &dfd, 4096);
-
-		if(debug)
-			fprint(2, "forked %d for new conn\n", pid);
-	}
 }
 
 void
@@ -234,11 +190,12 @@ usage(void)
 void
 threadmain(int argc, char *argv[])
 {
-	int acfd;
-	char adir[40], *addr;
+	int acfd, adfd;
+	char adir[40], *addr, aux[64];
 
 	GEOMfmtinstall();
-	addr = "tcp!*!112"; /* for testing. will work out udp soon */
+	fmtinstall('I', eipfmt);
+	addr = "udp!*!112";
 	ARGBEGIN{
 	case 'a':
 		addr = EARGF(usage());
@@ -256,6 +213,15 @@ threadmain(int argc, char *argv[])
 	if(acfd < 0)
 		sysfatal("announce: %r");
 
+	/* we don't want a line per client. we want it RAW */
+	if(fprint(acfd, "headers") < 0)
+		sysfatal("couldn't set udp headers option: %r");
+
+	snprint(aux, sizeof aux, "%s/data", adir);
+	adfd = open(aux, ORDWR);
+	if(adfd < 0)
+		sysfatal("open: %r");
+
 	if(debug)
 		fprint(2, "listening on %s\n", addr);
 
@@ -263,7 +229,7 @@ threadmain(int argc, char *argv[])
 	inittheparty();
 
 	threadcreate(threadC2, nil, 4096);
-	threadcreate(threadlisten, adir, 4096);
+	threadcreate(threadlisten, &adfd, 4096);
 	threadcreate(threadsim, nil, 4096);
 	threadexits(nil);
 }
