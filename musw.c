@@ -1,5 +1,6 @@
 #include <u.h>
 #include <libc.h>
+#include <ip.h>
 #include <bio.h>
 #include <thread.h>
 #include <draw.h>
@@ -219,12 +220,23 @@ threadnetsend(void *arg)
 	uchar buf[1024];
 	int fd, n;
 	ulong kdown;
+	Frame *frame;
 
 	fd = *(int*)arg;
+	frame = emalloc(sizeof(Frame)+sizeof(kdown));
+	frame->udp = nil;
+	frame->seq = 223;
+	frame->ack = 222;
+	frame->id = ntruerand(100);
+	frame->len = sizeof(kdown);
 
 	for(;;){
 		kdown = recvul(kchan);
-		n = pack(buf, sizeof buf, "k", kdown);
+		frame->data[0] = kdown>>24;
+		frame->data[1] = kdown>>16;
+		frame->data[2] = kdown>>8;
+		frame->data[3] = kdown;
+		n = pack(buf, sizeof buf, "F", frame);
 		if(write(fd, buf, n) != n)
 			sysfatal("write: %r");
 	}

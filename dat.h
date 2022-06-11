@@ -23,6 +23,10 @@ enum {
 	SCRHB	= SCRH+2*Borderwidth
 };
 
+enum {
+	Framesize = 4+4+4+2,
+};
+
 typedef struct VModel VModel;
 typedef struct Sprite Sprite;
 typedef struct Particle Particle;
@@ -31,9 +35,11 @@ typedef struct Ship Ship;
 typedef struct Star Star;
 typedef struct Universe Universe;
 typedef struct Derivative Derivative;
+
+typedef struct Frame Frame;
 typedef struct Conn Conn;
-typedef struct Player Player;
 typedef struct PInput PInput;
+typedef struct Player Player;
 typedef struct Lobby Lobby;
 typedef struct Party Party;
 
@@ -109,6 +115,16 @@ struct Derivative
 {
 	Point2 dx; /* v */
 	Point2 dv; /* a */
+};
+
+struct Frame
+{
+	Udphdr *udp;
+	uint seq;
+	uint ack;
+	uint id;
+	ushort len;
+	uchar data[];
 };
 
 struct Conn

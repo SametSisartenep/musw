@@ -1,9 +1,22 @@
 #include <u.h>
 #include <libc.h>
+#include <ip.h>
 #include <draw.h>
 #include "libgeometry/geometry.h"
 #include "dat.h"
 #include "fns.h"
+
+static ushort
+get2(uchar *p)
+{
+	return p[0]<<8 | p[1];
+}
+
+static void
+put2(uchar *p, ushort u)
+{
+	p[0] = u>>8, p[1] = u;
+}
 
 static ulong
 get4(uchar *p)
@@ -24,6 +37,7 @@ vpack(uchar *p, int n, char *fmt, va_list a)
 	ulong k;
 	FPdbleword d;
 	Point2 P;
+	Frame *F;
 
 	for(;;){
 		switch(*fmt++){
@@ -57,6 +71,19 @@ vpack(uchar *p, int n, char *fmt, va_list a)
 			put4(p, k), p += 4;
 
 			break;
+		case 'F':
+			F = va_arg(a, Frame*);
+
+			if(p+Framesize+F->len > e)
+				goto err;
+
+			put4(p, F->seq), p += 4;
+			put4(p, F->ack), p += 4;
+			put4(p, F->id), p += 4;
+			put2(p, F->len), p += 2;
+			memmove(p, F->data, F->len), p += F->len;
+
+			break;
 		}
 	}
 err:
@@ -70,6 +97,7 @@ vunpack(uchar *p, int n, char *fmt, va_list a)
 	ulong k;
 	FPdbleword d;
 	Point2 P;
+	Frame *F;
 
 	for(;;){
 		switch(*fmt++){
@@ -98,6 +126,27 @@ vunpack(uchar *p, int n, char *fmt, va_list a)
 
 			k = get4(p), p += 4;
 			*va_arg(a, ulong*) = k;
+
+			break;
+		case 'F':
+			if(p+Udphdrsize+Framesize > e)
+				goto err;
+
+			F = va_arg(a, Frame*);
+
+			F->udp = (Udphdr*)p, p += Udphdrsize;
+			F->seq = get4(p), p += 4;
+			F->ack = get4(p), p += 4;
+			F->id = get4(p), p += 4;
+			F->len = get2(p), p += 2;
+
+			/* XXX: I'm not happy with this. */
+			if(p+F->len > e)
+				goto err;
+
+			F = erealloc(F, sizeof(Frame)+F->len);
+			memmove(F->data, p, F->len);
+			p += F->len;
 
 			break;
 		}

@@ -20,26 +20,33 @@ threadlisten(void *arg)
 	ushort rport, lport;
 	ulong kdown;
 	Ioproc *io;
-	Udphdr *udp;
+//	Udphdr *udp;
+	Frame *frame;
 
 	fd = *(int*)arg;
 	io = ioproc();
+	frame = emalloc(sizeof(Frame));
 
 	while((n = ioread(io, fd, buf, sizeof buf)) > 0){
-		if(n < Udphdrsize)
-			continue;
-
-		udp = (Udphdr*)buf;
-		p = buf+Udphdrsize;
+//		if(n < Udphdrsize)
+//			continue;
+//
+//		udp = (Udphdr*)buf;
+		p = buf;
 		e = buf+n;
 
-		rport = udp->rport[0]<<8 | udp->rport[1];
-		lport = udp->lport[0]<<8 | udp->lport[1];
+		unpack(p, e-p, "F", frame);
 
-		unpack(p, e-p, "k", &kdown);
+		rport = frame->udp->rport[0]<<8 | frame->udp->rport[1];
+		lport = frame->udp->lport[0]<<8 | frame->udp->lport[1];
+		kdown = frame->data[0]<<24|
+			frame->data[1]<<16|
+			frame->data[2]<<8|
+			frame->data[3];
+
 		if(debug)
-			fprint(2, "%I!%d → %I!%d | %d (%d) rcvd %.*lub\n",
-				udp->raddr, rport, udp->laddr, lport, threadid(), getpid(), sizeof(kdown)*8, kdown);
+			fprint(2, "%I!%d → %I!%d | %d (%d) rcvd seq %ud ack %ud id %ud len %ud %.*lub\n",
+				frame->udp->raddr, rport, frame->udp->laddr, lport, threadid(), getpid(), frame->seq, frame->ack, frame->id, frame->len, sizeof(kdown)*8, kdown);
 	}
 	closeioproc(io);
 }
