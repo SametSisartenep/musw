@@ -15,12 +15,11 @@ Lobby *lobby;
 void
 threadlisten(void *arg)
 {
-	uchar buf[1024], *p, *e;
+	uchar buf[MTU], *p, *e;
 	int fd, n;
 	ushort rport, lport;
 	ulong kdown;
 	Ioproc *io;
-//	Udphdr *udp;
 	Frame *frame;
 
 	fd = *(int*)arg;
@@ -28,10 +27,6 @@ threadlisten(void *arg)
 	frame = emalloc(sizeof(Frame));
 
 	while((n = ioread(io, fd, buf, sizeof buf)) > 0){
-//		if(n < Udphdrsize)
-//			continue;
-//
-//		udp = (Udphdr*)buf;
 		p = buf;
 		e = buf+n;
 
@@ -39,10 +34,8 @@ threadlisten(void *arg)
 
 		rport = frame->udp->rport[0]<<8 | frame->udp->rport[1];
 		lport = frame->udp->lport[0]<<8 | frame->udp->lport[1];
-		kdown = frame->data[0]<<24|
-			frame->data[1]<<16|
-			frame->data[2]<<8|
-			frame->data[3];
+		
+		unpack(frame->data, frame->len, "k", &kdown);
 
 		if(debug)
 			fprint(2, "%I!%d → %I!%d | %d (%d) rcvd seq %ud ack %ud id %ud len %ud %.*lub\n",

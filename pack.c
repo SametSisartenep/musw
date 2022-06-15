@@ -74,7 +74,7 @@ vpack(uchar *p, int n, char *fmt, va_list a)
 		case 'F':
 			F = va_arg(a, Frame*);
 
-			if(p+Framesize+F->len > e)
+			if(p+Framehdrsize+F->len > e)
 				goto err;
 
 			put4(p, F->seq), p += 4;
@@ -129,7 +129,7 @@ vunpack(uchar *p, int n, char *fmt, va_list a)
 
 			break;
 		case 'F':
-			if(p+Udphdrsize+Framesize > e)
+			if(p+Udphdrsize+Framehdrsize > e)
 				goto err;
 
 			F = va_arg(a, Frame*);

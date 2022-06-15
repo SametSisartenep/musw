@@ -33,7 +33,7 @@ ulong kdown;
 
 RFrame screenrf;
 Universe *universe;
-VModel *needlemdl;
+VModel *needlemdl, *wedgemdl;
 Image *skymap;
 Channel *kchan;
 char winspec[32];
@@ -217,7 +217,7 @@ threadnetrecv(void *arg)
 void
 threadnetsend(void *arg)
 {
-	uchar buf[1024];
+	uchar buf[MTU];
 	int fd, n;
 	ulong kdown;
 	Frame *frame;
@@ -225,17 +225,18 @@ threadnetsend(void *arg)
 	fd = *(int*)arg;
 	frame = emalloc(sizeof(Frame)+sizeof(kdown));
 	frame->udp = nil;
-	frame->seq = 223;
-	frame->ack = 222;
-	frame->id = ntruerand(100);
+	frame->seq = ntruerand(1000)>>1;
+	frame->ack = 0;
+	frame->id = truerand();
 	frame->len = sizeof(kdown);
 
 	for(;;){
 		kdown = recvul(kchan);
-		frame->data[0] = kdown>>24;
-		frame->data[1] = kdown>>16;
-		frame->data[2] = kdown>>8;
-		frame->data[3] = kdown;
+
+		frame->seq++;
+
+		pack(frame->data, frame->len, "k", kdown);
+
 		n = pack(buf, sizeof buf, "F", frame);
 		if(write(fd, buf, n) != n)
 			sysfatal("write: %r");
@@ -376,8 +377,11 @@ threadmain(int argc, char *argv[])
 	needlemdl = readvmodel("assets/mdl/needle.vmdl");
 	if(needlemdl == nil)
 		sysfatal("readvmodel: %r");
+	wedgemdl = readvmodel("assets/mdl/wedge.vmdl");
+	if(wedgemdl == nil)
+		sysfatal("readvmodel: %r");
 	universe->ships[0].mdl = needlemdl;
-	universe->ships[1].mdl = needlemdl;
+	universe->ships[1].mdl = wedgemdl;
 	universe->star.spr = readsprite("assets/spr/earth.pic", ZP, Rect(0,0,32,32), 5, 20e3);
 
 	initskymap();

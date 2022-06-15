@@ -24,7 +24,8 @@ enum {
 };
 
 enum {
-	Framesize = 4+4+4+2,
+	Framehdrsize	= 4+4+4+2,
+	MTU		= 1024
 };
 
 typedef struct VModel VModel;
