@@ -1,14 +1,61 @@
 #include <u.h>
 #include <libc.h>
+#include <bio.h>
 #include <thread.h>
 #include <draw.h>
 #include <mouse.h>
 #include <keyboard.h>
 #include "../libgeometry/geometry.h"
 
+/*
+ * Vector model - made out of lines and curves
+ */
+typedef struct VModel VModel;
+struct VModel
+{
+	Point2 *pts;
+	ulong npts;
+	/* WIP
+	 * l(ine) → takes 2 points
+	 * c(urve) → takes 3 points
+	 */
+	char *strokefmt;
+};
+
 RFrame worldrf;
+VModel *model;
 
 void resized(void);
+
+void*
+emalloc(ulong n)
+{
+	void *p;
+
+	p = malloc(n);
+	if(p == nil)
+		sysfatal("malloc: %r");
+	setmalloctag(p, getcallerpc(&n));
+	return p;
+}
+
+void*
+erealloc(void *p, ulong n)
+{
+	void *np;
+
+	np = realloc(p, n);
+	if(np == nil){
+		if(n == 0)
+			return nil;
+		sysfatal("realloc: %r");
+	}
+	if(p == nil)
+		setmalloctag(np, getcallerpc(&p));
+	else
+		setrealloctag(np, getcallerpc(&p));
+	return np;
+}
 
 Point
 toscreen(Point2 p)
@@ -23,13 +70,93 @@ fromscreen(Point p)
 	return rframexform(Pt2(p.x,p.y,1), worldrf);
 }
 
+VModel *
+readvmodel(char *file)
+{
+	ulong lineno;
+	char *s, *args[2];
+	Biobuf *bin;
+	VModel *mdl;
+
+	bin = Bopen(file, OREAD);
+	if(bin == nil)
+		sysfatal("Bopen: %r");
+
+	mdl = emalloc(sizeof(VModel));
+	mdl->pts = nil;
+	mdl->npts = 0;
+	mdl->strokefmt = nil;
+
+	lineno = 0;
+	while(s = Brdline(bin, '\n')){
+		s[Blinelen(bin)-1] = 0;
+		lineno++;
+
+		switch(*s++){
+		case '#':
+			continue;
+		case 'v':
+			if(tokenize(s, args, nelem(args)) != nelem(args)){
+				werrstr("syntax error: %s:%lud 'v' expects %d args",
+					file, lineno, nelem(args));
+				free(mdl);
+				Bterm(bin);
+				return nil;
+			}
+			mdl->pts = erealloc(mdl->pts, ++mdl->npts*sizeof(Point2));
+			mdl->pts[mdl->npts-1].x = strtod(args[0], nil);
+			mdl->pts[mdl->npts-1].y = strtod(args[1], nil);
+			mdl->pts[mdl->npts-1].w = 1;
+			break;
+		case 'l':
+		case 'c':
+			mdl->strokefmt = strdup(s-1);
+			break;
+		}
+	}
+	Bterm(bin);
+
+	return mdl;
+}
+
+void
+drawvmodel(Image *dst, VModel *mdl)
+{
+	int i;
+	char *s;
+	Point pts[3];
+	Point2 *p;
+
+	p = mdl->pts;
+	for(s = mdl->strokefmt; s != 0 && p-mdl->pts < mdl->npts; s++)
+		switch(*s){
+		case 'l':
+			line(dst, toscreen(p[0]), toscreen(p[1]), 0, 0, 0, display->white, ZP);
+			p += 2;
+			break;
+		case 'c':
+			for(i = 0; i < nelem(pts); i++)
+				pts[i] = toscreen(p[i]);
+			bezspline(dst, pts, nelem(pts), 0, 0, 0, display->white, ZP);
+			p += 3;
+			break;
+		}
+}
+
+void
+drawaxes(void)
+{
+	line(screen, toscreen(Pt2(0,512,1)), toscreen(Pt2(0,-512,1)), 0, 0, 0, display->white, ZP);
+	line(screen, toscreen(Pt2(512,0,1)), toscreen(Pt2(-512,0,1)), 0, 0, 0, display->white, ZP);
+}
+
 void
 redraw(void)
 {
 	lockdisplay(display);
 	draw(screen, screen->r, display->black, nil, ZP);
-	line(screen, toscreen(Pt2(0,512,1)), toscreen(Pt2(0,-512,1)), 0, 0, 0, display->white, ZP);
-	line(screen, toscreen(Pt2(512,0,1)), toscreen(Pt2(-512,0,1)), 0, 0, 0, display->white, ZP);
+	drawaxes();
+	drawvmodel(screen, model);
 	flushimage(display, 1);
 	unlockdisplay(display);
 }
@@ -100,6 +227,10 @@ threadmain(int argc, char *argv[])
 	worldrf.p = Pt2(screen->r.min.x+Dx(screen->r)/2,screen->r.max.y-Dy(screen->r)/2,1);
 	worldrf.bx = Vec2(1, 0);
 	worldrf.by = Vec2(0,-1);
+
+	model = readvmodel("../assets/mdl/wedge.vmdl");
+	if(model == nil)
+		sysfatal("readvmodel: %r");
 
 	display->locking = 1;
 	unlockdisplay(display);
