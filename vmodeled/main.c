@@ -24,6 +24,7 @@ struct VModel
 
 RFrame worldrf;
 VModel *model;
+int scale = 1;
 
 void resized(void);
 
@@ -126,17 +127,22 @@ drawvmodel(Image *dst, VModel *mdl)
 	char *s;
 	Point pts[3];
 	Point2 *p;
+	Matrix S = {
+		scale, 0, 1,
+		0, scale, 1,
+		0, 0, 1,
+	};
 
 	p = mdl->pts;
 	for(s = mdl->strokefmt; s != 0 && p-mdl->pts < mdl->npts; s++)
 		switch(*s){
 		case 'l':
-			line(dst, toscreen(p[0]), toscreen(p[1]), 0, 0, 0, display->white, ZP);
+			line(dst, toscreen(xform(p[0], S)), toscreen(xform(p[1], S)), 0, 0, 0, display->white, ZP);
 			p += 2;
 			break;
 		case 'c':
 			for(i = 0; i < nelem(pts); i++)
-				pts[i] = toscreen(p[i]);
+				pts[i] = toscreen(xform(p[i], S));
 			bezspline(dst, pts, nelem(pts), 0, 0, 0, display->white, ZP);
 			p += 3;
 			break;
@@ -176,12 +182,30 @@ lmb(Mousectl *mc, Keyboardctl *)
 }
 
 void
+zoomin(void)
+{
+	scale++;
+	fprint(2, "scale %d\n", scale);
+}
+
+void
+zoomout(void)
+{
+	scale--;
+	fprint(2, "scale %d\n", scale);
+}
+
+void
 mouse(Mousectl *mc, Keyboardctl *kc)
 {
 	if((mc->buttons&1) != 0)
 		lmb(mc, kc);
 	if((mc->buttons&4) != 0)
 		rmb(mc, kc);
+	if((mc->buttons&8) != 0)
+		zoomin();
+	if((mc->buttons&16) != 0)
+		zoomout();
 }
 
 void
