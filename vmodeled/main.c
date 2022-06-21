@@ -24,7 +24,7 @@ struct VModel
 
 RFrame worldrf;
 VModel *model;
-int scale = 1;
+double scale = 1;
 
 void resized(void);
 
@@ -182,17 +182,23 @@ lmb(Mousectl *mc, Keyboardctl *)
 }
 
 void
-zoomin(void)
+zoom(Mousectl *mc)
 {
-	scale++;
-	fprint(2, "scale %d\n", scale);
-}
+	double oldscale, z;
+	Point oldxy, Δxy;
 
-void
-zoomout(void)
-{
-	scale--;
-	fprint(2, "scale %d\n", scale);
+	oldscale = scale;
+	oldxy = mc->xy;
+
+	for(;;){
+		readmouse(mc);
+		if(mc->buttons != 2)
+			break;
+		Δxy = subpt(mc->xy, oldxy);
+		z = tanh((double)Δxy.y/100) + 1;
+		scale = z*oldscale;
+		redraw();
+	}
 }
 
 void
@@ -200,12 +206,10 @@ mouse(Mousectl *mc, Keyboardctl *kc)
 {
 	if((mc->buttons&1) != 0)
 		lmb(mc, kc);
+	if((mc->buttons&2) != 0)
+		zoom(mc);
 	if((mc->buttons&4) != 0)
 		rmb(mc, kc);
-	if((mc->buttons&8) != 0)
-		zoomin();
-	if((mc->buttons&16) != 0)
-		zoomout();
 }
 
 void
