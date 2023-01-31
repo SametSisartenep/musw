@@ -5,7 +5,7 @@
 #include <draw.h>
 #include <mouse.h>
 #include <keyboard.h>
-#include "../libgeometry/geometry.h"
+#include <geometry.h>
 
 /*
  * Vector model - made out of lines and curves

@@ -1,0 +1,28 @@
+.TH MUSW 1
+.SH NAME
+musw, muswd \- multi-user spacewar!
+.SH SYNOPSIS
+.B games/musw
+[
+.B -d
+]
+.I dialstring
+.br
+.B games/muswd
+[
+.B -d
+]
+[
+.B -a
+.I addr
+]
+.SH DESCRIPTION
+.SH EXAMPLE
+.SH SOURCE
+.B /sys/src/games/musw
+.SH SEE ALSO
+https://www.masswerk.at/spacewar/
+.br
+https://www.masswerk.at/spacewar/SpacewarOrigin.html
+.SH BUGS
+.SH HISTORY

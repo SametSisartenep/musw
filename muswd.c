@@ -3,13 +3,14 @@
 #include <ip.h>
 #include <thread.h>
 #include <draw.h>
-#include "libgeometry/geometry.h"
+#include <geometry.h>
 #include "dat.h"
 #include "fns.h"
 
 int debug;
 
 Lobby *lobby;
+Party theparty;
 
 
 void
@@ -89,7 +90,7 @@ threadsim(void *)
 		lobby->purge(lobby);
 
 		if(lobby->getcouple(lobby, couple) != -1){
-			newparty(couple);
+			newparty(&theparty, couple);
 			theparty.prev->u->reset(theparty.prev->u);
 		}
 
@@ -232,7 +233,7 @@ threadmain(int argc, char *argv[])
 		fprint(2, "listening on %s\n", addr);
 
 	lobby = newlobby();
-	inittheparty();
+	initparty(&theparty);
 
 	threadcreate(threadC2, nil, 4096);
 	threadcreate(threadlisten, &adfd, 4096);

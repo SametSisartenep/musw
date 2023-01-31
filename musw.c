@@ -6,7 +6,7 @@
 #include <draw.h>
 #include <mouse.h>
 #include <keyboard.h>
-#include "libgeometry/geometry.h"
+#include <geometry.h>
 #include "dat.h"
 #include "fns.h"
 

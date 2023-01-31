@@ -2,33 +2,24 @@
 #include <libc.h>
 #include <ip.h>
 #include <draw.h>
-#include "libgeometry/geometry.h"
+#include <geometry.h>
 #include "dat.h"
 #include "fns.h"
 
-Party theparty;
-
-
-void
-inittheparty(void)
-{
-	theparty.next = theparty.prev = &theparty;
-}
-
 Party *
-newparty(Player *players)
+newparty(Party *p, Player *players)
 {
-	Party *p;
+	Party *np;
 
-	p = emalloc(sizeof(Party));
-	p->players[0] = players[0];
-	p->players[1] = players[1];
+	np = emalloc(sizeof(Party));
+	np->players[0] = players[0];
+	np->players[1] = players[1];
 
-	p->u = newuniverse();
+	np->u = newuniverse();
 
-	addparty(p);
+	addparty(p, np);
 
-	return p;
+	return np;
 }
 
 void
@@ -41,10 +32,16 @@ delparty(Party *p)
 }
 
 void
-addparty(Party *p)
+addparty(Party *theparty, Party *p)
 {
-	p->prev = theparty.prev;
-	p->next = &theparty;
-	theparty.prev->next = p;
-	theparty.prev = p;
+	p->prev = theparty->prev;
+	p->next = theparty;
+	theparty->prev->next = p;
+	theparty->prev = p;
+}
+
+void
+initparty(Party *p)
+{
+	p->next = p->prev = p;
 }

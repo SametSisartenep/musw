@@ -2,7 +2,7 @@
 #include <libc.h>
 #include <ip.h>
 #include <draw.h>
-#include "libgeometry/geometry.h"
+#include <geometry.h>
 #include "dat.h"
 #include "fns.h"
 

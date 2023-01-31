@@ -166,6 +166,3 @@ struct Party
 	Universe *u;
 	Party *prev, *next;
 };
-
-
-extern Party theparty;

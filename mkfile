@@ -20,17 +20,7 @@ HFILES=\
 	dat.h\
 	fns.h\
 
-LIB=\
-	libgeometry/libgeometry.a$O\
-
 </sys/src/cmd/mkmany
-
-libgeometry/libgeometry.a$O: pulldeps
-	cd libgeometry
-	mk install
-
-pulldeps:V:
-	! test -d libgeometry && git/clone https://github.com/sametsisartenep/libgeometry || echo >/dev/null
 
 install:V: man
 

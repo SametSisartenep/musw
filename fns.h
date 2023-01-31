@@ -32,10 +32,10 @@ void dellobby(Lobby*);
 /*
  * party
  */
-void inittheparty(void);
-Party *newparty(Player[2]);
+Party *newparty(Party*, Player[2]);
 void delparty(Party*);
-void addparty(Party*);
+void addparty(Party*, Party*);
+void initparty(Party*);
 
 /*
  * universe
