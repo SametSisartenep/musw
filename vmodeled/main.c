@@ -24,6 +24,7 @@ struct VModel
 
 RFrame worldrf;
 VModel *model;
+double θ;
 double scale = 1;
 
 void resized(void);
@@ -131,8 +132,13 @@ drawvmodel(Image *dst, VModel *mdl)
 		scale, 0, 1,
 		0, scale, 1,
 		0, 0, 1,
+	}, R = {
+		cos(θ), -sin(θ), 1,
+		sin(θ),  cos(θ), 1,
+		0, 0, 1,
 	};
 
+	mulm(S, R);
 	p = mdl->pts;
 	for(s = mdl->strokefmt; s != 0 && p-mdl->pts < mdl->npts; s++)
 		switch(*s){
@@ -168,8 +174,24 @@ redraw(void)
 }
 
 void
-rmb(Mousectl *, Keyboardctl *)
+rmb(Mousectl *mc, Keyboardctl *)
 {
+	Point2 p;
+	double oldmθ, oldθ;
+
+	p = fromscreen(mc->xy);
+	oldmθ = atan2(p.y, p.x);
+	oldθ = θ;
+
+	for(;;){
+		readmouse(mc);
+		if(mc->buttons != 4)
+			break;
+		p = fromscreen(mc->xy);
+		θ = oldθ + (atan2(p.y, p.x) - oldmθ);
+		fprint(2, "θ %g\n", θ);
+		redraw();
+	}
 }
 
 void
@@ -178,7 +200,7 @@ lmb(Mousectl *mc, Keyboardctl *)
 	Point2 mpos;
 
 	mpos = fromscreen(mc->xy);
-	fprint(2, "%v\n", mpos);
+	fprint(2, "mpos %v\n", mpos);
 }
 
 void
