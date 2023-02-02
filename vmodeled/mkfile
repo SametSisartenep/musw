@@ -6,3 +6,6 @@ OFILES=\
 	main.$O\
 
 </sys/src/cmd/mkone
+
+syms:V:
+	$CC -a main.c > syms
