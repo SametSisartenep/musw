@@ -31,8 +31,6 @@ struct Object
 
 RFrame worldrf;
 Object mainobj;
-double θ;
-double scale = 1;
 
 void resized(void);
 
@@ -156,40 +154,23 @@ writevmodel(VModel *mdl, char *file)
 }
 
 void
-drawvmodel(Image *dst, VModel *mdl, int t)
+drawvmodel(Image *dst, VModel *mdl)
 {
 	int i;
 	char *s;
 	Point pts[3];
 	Point2 *p;
-	Matrix S = {
-		1/scale, 0, 0,
-		0, 1/scale, 0,
-		0, 0, 1,
-	}, R = {
-		cos(θ), -sin(θ), 0,
-		sin(θ),  cos(θ), 0,
-		0, 0, 1,
-	};
 
-	if(t)
-		mulm(S, R);
 	p = mdl->pts;
 	for(s = mdl->strokefmt; s != 0 && p-mdl->pts < mdl->npts; s++)
 		switch(*s){
 		case 'l':
-			if(t)
-				line(dst, toscreen(invrframexform(xform(p[0], S), mainobj)), toscreen(invrframexform(xform(p[1], S), mainobj)), 0, 0, 0, display->white, ZP);
-			else
-				line(dst, toscreen(invrframexform(p[0], mainobj)), toscreen(invrframexform(p[1], mainobj)), 0, 0, 0, display->white, ZP);
+			line(dst, toscreen(invrframexform(p[0], mainobj)), toscreen(invrframexform(p[1], mainobj)), 0, 0, 0, display->white, ZP);
 			p += 2;
 			break;
 		case 'c':
 			for(i = 0; i < nelem(pts); i++)
-				if(t)
-					pts[i] = toscreen(invrframexform(xform(p[i], S), mainobj));
-				else
-					pts[i] = toscreen(invrframexform(p[i], mainobj));
+				pts[i] = toscreen(invrframexform(p[i], mainobj));
 			bezspline(dst, pts, nelem(pts), 0, 0, 0, display->white, ZP);
 			p += 3;
 			break;
@@ -217,12 +198,6 @@ drawinfo(void)
 	snprint(buf, sizeof buf, "wby %v", worldrf.by);
 	string(screen, addpt(screen->r.min, p), display->white, ZP, font, buf);
 	p.y += font->height;
-	snprint(buf, sizeof buf, "s %g", scale);
-	string(screen, addpt(screen->r.min, p), display->white, ZP, font, buf);
-	p.y += font->height;
-	snprint(buf, sizeof buf, "θ %g", θ);
-	string(screen, addpt(screen->r.min, p), display->white, ZP, font, buf);
-	p.y += font->height;
 	snprint(buf, sizeof buf, "obx %v", mainobj.bx);
 	string(screen, addpt(screen->r.min, p), display->white, ZP, font, buf);
 	p.y += font->height;
@@ -231,12 +206,12 @@ drawinfo(void)
 }
 
 void
-redraw(int t)
+redraw(void)
 {
 	lockdisplay(display);
 	draw(screen, screen->r, display->black, nil, ZP);
 	drawaxes();
-	drawvmodel(screen, mainobj.mdl, t);
+	drawvmodel(screen, mainobj.mdl);
 	drawinfo();
 	flushimage(display, 1);
 	unlockdisplay(display);
@@ -266,33 +241,30 @@ zoom(Mousectl *mc)
 			break;
 		Δxy = subpt(mc->xy, oldxy);
 		z = tanh((double)Δxy.y/100) + 1;
-		scale = z;
-		redraw(1);
+		zoomobj(z);
+		oldxy = mc->xy;
+		redraw();
 	}
-	zoomobj(scale);
-	scale = 1;
 }
 
 void
 rmb(Mousectl *mc, Keyboardctl *)
 {
 	Point2 p;
-	double oldpθ, oldθ;
+	double oldθ, θ;
 
 	p = rframexform(fromscreen(mc->xy), mainobj);
-	oldpθ = atan2(p.y, p.x);
-	oldθ = θ;
+	oldθ = atan2(p.y, p.x);
 
 	for(;;){
 		readmouse(mc);
 		if(mc->buttons != 4)
 			break;
 		p = rframexform(fromscreen(mc->xy), mainobj);
-		θ = oldθ + atan2(p.y, p.x) - oldpθ;
-		redraw(1);
+		θ = atan2(p.y, p.x) - oldθ;
+		rotateobj(θ);
+		redraw();
 	}
-	rotateobj(θ);
-	θ = 0;
 }
 
 void
@@ -358,7 +330,7 @@ threadmain(int argc, char *argv[])
 
 	display->locking = 1;
 	unlockdisplay(display);
-	redraw(0);
+	redraw();
 
 	for(;;){
 		enum { MOUSE, RESIZE, KEYBOARD };
@@ -381,7 +353,7 @@ threadmain(int argc, char *argv[])
 			break;
 		}
 
-		redraw(0);
+		redraw();
 	}
 }
 
@@ -393,5 +365,5 @@ resized(void)
 		sysfatal("couldn't resize");
 	unlockdisplay(display);
 	worldrf.p = Pt2(screen->r.min.x+Dx(screen->r)/2,screen->r.max.y-Dy(screen->r)/2,1);
-	redraw(0);
+	redraw();
 }
