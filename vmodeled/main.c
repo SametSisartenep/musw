@@ -7,6 +7,12 @@
 #include <keyboard.h>
 #include <geometry.h>
 
+typedef enum {
+	SLine,
+	SCurve,
+	NStrokes
+} Stroke;
+
 /*
  * Vector model - made out of lines and curves
  */
@@ -27,10 +33,21 @@ struct Object
 {
 	RFrame;
 	VModel *mdl;
+
+	void (*scale)(Object*, double);
+	void (*rotate)(Object*, double);
+};
+
+char *strokename[NStrokes] = {
+ [SLine]	"line",
+ [SCurve]	"curve",
 };
 
 RFrame worldrf;
 Object mainobj;
+Stroke stroke;
+Point ptstk[3];
+Point *ptstkp;
 
 void resized(void);
 
@@ -78,22 +95,22 @@ fromscreen(Point p)
 }
 
 void
-rotateobj(double θ)
+obj_rotate(Object *o, double θ)
 {
 	Matrix R = {
 		cos(θ), -sin(θ), 0,
 		sin(θ),  cos(θ), 0,
 		0, 0, 1,
 	};
-	mainobj.bx = xform(mainobj.bx, R);
-	mainobj.by = xform(mainobj.by, R);
+	o->bx = xform(o->bx, R);
+	o->by = xform(o->by, R);
 }
 
 void
-zoomobj(double z)
+obj_scale(Object *o, double s)
 {
-	mainobj.bx = mulpt2(mainobj.bx, z);
-	mainobj.by = mulpt2(mainobj.by, z);
+	o->bx = mulpt2(o->bx, s);
+	o->by = mulpt2(o->by, s);
 }
 
 VModel *
@@ -146,11 +163,14 @@ readvmodel(char *file)
 }
 
 int
-writevmodel(VModel *mdl, char *file)
+writevmodel(VModel *mdl)
 {
-	USED(mdl);
-	USED(file);
-	return -1;
+	Point2 *p;
+
+	for(p = mdl->pts; p < mdl->pts+mdl->npts; p++)
+		print("v %g %g\n", p->x, p->y);
+	print("%s\n", mdl->strokefmt);
+	return 0;
 }
 
 void
@@ -192,16 +212,10 @@ drawinfo(void)
 
 	p = Pt(10,3);
 
-	snprint(buf, sizeof buf, "wbx %v", worldrf.bx);
+	snprint(buf, sizeof buf, "fmt %s", mainobj.mdl->strokefmt);
 	string(screen, addpt(screen->r.min, p), display->white, ZP, font, buf);
 	p.y += font->height;
-	snprint(buf, sizeof buf, "wby %v", worldrf.by);
-	string(screen, addpt(screen->r.min, p), display->white, ZP, font, buf);
-	p.y += font->height;
-	snprint(buf, sizeof buf, "obx %v", mainobj.bx);
-	string(screen, addpt(screen->r.min, p), display->white, ZP, font, buf);
-	p.y += font->height;
-	snprint(buf, sizeof buf, "oby %v", mainobj.by);
+	snprint(buf, sizeof buf, "op %s", strokename[stroke]);
 	string(screen, addpt(screen->r.min, p), display->white, ZP, font, buf);
 }
 
@@ -217,20 +231,30 @@ redraw(void)
 	unlockdisplay(display);
 }
 
+//void
+//plotaline(Mousectl *mc, Keyboardctl *)
+//{
+//
+//}
+
+//void
+//plotacurve(Mousectl *mc, Keyboardctl *)
+//{
+//
+//}
+
 void
-lmb(Mousectl *mc, Keyboardctl *)
+plot(Mousectl *mc, Keyboardctl *)
 {
 	Point2 mpos;
 
 	mpos = fromscreen(mc->xy);
-	fprint(2, "wp %v\n", mpos);
-	fprint(2, "op %v\n", rframexform(mpos, mainobj));
 }
 
 void
-zoom(Mousectl *mc)
+zoom(Mousectl *mc, Keyboardctl *)
 {
-	double z;
+	double z; /* zooming factor */
 	Point oldxy, Δxy;
 
 	oldxy = mc->xy;
@@ -241,14 +265,14 @@ zoom(Mousectl *mc)
 			break;
 		Δxy = subpt(mc->xy, oldxy);
 		z = tanh((double)Δxy.y/100) + 1;
-		zoomobj(z);
+		mainobj.scale(&mainobj, z);
 		oldxy = mc->xy;
 		redraw();
 	}
 }
 
 void
-rmb(Mousectl *mc, Keyboardctl *)
+rota(Mousectl *mc, Keyboardctl *)
 {
 	Point2 p;
 	double oldθ, θ;
@@ -262,7 +286,7 @@ rmb(Mousectl *mc, Keyboardctl *)
 			break;
 		p = rframexform(fromscreen(mc->xy), mainobj);
 		θ = atan2(p.y, p.x) - oldθ;
-		rotateobj(θ);
+		mainobj.rotate(&mainobj, θ);
 		redraw();
 	}
 }
@@ -271,11 +295,11 @@ void
 mouse(Mousectl *mc, Keyboardctl *kc)
 {
 	if((mc->buttons&1) != 0)
-		lmb(mc, kc);
+		plot(mc, kc);
 	if((mc->buttons&2) != 0)
-		zoom(mc);
+		zoom(mc, kc);
 	if((mc->buttons&4) != 0)
-		rmb(mc, kc);
+		rota(mc, kc);
 }
 
 void
@@ -284,7 +308,14 @@ key(Rune r)
 	switch(r){
 	case Kdel:
 	case 'q':
+		writevmodel(mainobj.mdl);
 		threadexitsall(nil);
+	case 'l':
+		stroke = SLine;
+		break;
+	case 'c':
+		stroke = SCurve;
+		break;
 	}
 }
 
@@ -323,6 +354,8 @@ threadmain(int argc, char *argv[])
 	worldrf.by = Vec2(0,-1);
 	mainobj.bx = Vec2(1, 0);
 	mainobj.by = Vec2(0, 1);
+	mainobj.scale = obj_scale;
+	mainobj.rotate = obj_rotate;
 
 	mainobj.mdl = readvmodel("../assets/mdl/wedge.vmdl");
 	if(mainobj.mdl == nil)
