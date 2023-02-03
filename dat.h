@@ -1,5 +1,4 @@
-typedef enum
-{
+typedef enum {
 	K↑,
 	K↺,
 	K↻,
@@ -10,8 +9,7 @@ typedef enum
 	NKEYOPS
 } KeyOp;
 
-typedef enum
-{
+typedef enum {
 	NEEDLE,
 	WEDGE
 } Kind;

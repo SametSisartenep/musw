@@ -46,8 +46,9 @@ char *strokename[NStrokes] = {
 RFrame worldrf;
 Object mainobj;
 Stroke stroke;
-Point ptstk[3];
-Point *ptstkp;
+Point2 ptstk[3];
+Point2 *ptstkp;
+char *vmdlfile;
 
 void resized(void);
 
@@ -163,13 +164,25 @@ readvmodel(char *file)
 }
 
 int
-writevmodel(VModel *mdl)
+writevmodel(VModel *mdl, char *file)
 {
 	Point2 *p;
+	Biobuf *bout;
+
+	bout = Bopen(file, OWRITE);
+	if(bout == nil)
+		sysfatal("Bopen: %r");
 
 	for(p = mdl->pts; p < mdl->pts+mdl->npts; p++)
-		print("v %g %g\n", p->x, p->y);
-	print("%s\n", mdl->strokefmt);
+		if(Bprint(bout, "v %g %g\n", p->x, p->y) == Beof)
+			goto saveerr;
+	if(Bprint(bout, "%s\n", mdl->strokefmt) == Beof){
+saveerr:
+		Bterm(bout);
+		sysfatal("error saving model: %r");
+	}
+	Bterm(bout);
+
 	return 0;
 }
 
@@ -182,7 +195,7 @@ drawvmodel(Image *dst, VModel *mdl)
 	Point2 *p;
 
 	p = mdl->pts;
-	for(s = mdl->strokefmt; s != 0 && p-mdl->pts < mdl->npts; s++)
+	for(s = mdl->strokefmt; s != nil && p-mdl->pts < mdl->npts; s++)
 		switch(*s){
 		case 'l':
 			line(dst, toscreen(invrframexform(p[0], mainobj)), toscreen(invrframexform(p[1], mainobj)), 0, 0, 0, display->white, ZP);
@@ -231,24 +244,62 @@ redraw(void)
 	unlockdisplay(display);
 }
 
-//void
-//plotaline(Mousectl *mc, Keyboardctl *)
-//{
-//
-//}
-
-//void
-//plotacurve(Mousectl *mc, Keyboardctl *)
-//{
-//
-//}
-
 void
 plot(Mousectl *mc, Keyboardctl *)
 {
-	Point2 mpos;
+	Point2 p;
+	char *newfmt;
+	ulong fmtlen;
 
-	mpos = fromscreen(mc->xy);
+	p = rframexform(fromscreen(mc->xy), mainobj);
+	if(ptstkp-ptstk < nelem(ptstk)){
+		*ptstkp++ = p;
+		switch(stroke){
+		case SLine:
+			if(ptstkp-ptstk == 2){
+				mainobj.mdl->npts += 2;
+				mainobj.mdl->pts = erealloc(mainobj.mdl->pts, mainobj.mdl->npts*sizeof(Point2));
+				mainobj.mdl->pts[mainobj.mdl->npts-2] = ptstk[0];
+				mainobj.mdl->pts[mainobj.mdl->npts-1] = ptstk[1];
+				ptstkp = &ptstk[0];
+				if(mainobj.mdl->strokefmt == nil){
+					fmtlen = 2;
+					newfmt = emalloc(fmtlen);
+				}else{
+					fmtlen = strlen(mainobj.mdl->strokefmt)+2;
+					newfmt = emalloc(fmtlen);
+					memmove(newfmt, mainobj.mdl->strokefmt, fmtlen-2);
+				}
+				newfmt[fmtlen-2] = 'l';
+				newfmt[fmtlen-1] = 0;
+				free(mainobj.mdl->strokefmt);
+				mainobj.mdl->strokefmt = newfmt;
+			}
+			break;
+		case SCurve:
+			if(ptstkp-ptstk == 3){
+				mainobj.mdl->npts += 3;
+				mainobj.mdl->pts = erealloc(mainobj.mdl->pts, mainobj.mdl->npts*sizeof(Point2));
+				mainobj.mdl->pts[mainobj.mdl->npts-3] = ptstk[0];
+				mainobj.mdl->pts[mainobj.mdl->npts-2] = ptstk[1];
+				mainobj.mdl->pts[mainobj.mdl->npts-1] = ptstk[2];
+				ptstkp = &ptstk[0];
+				if(mainobj.mdl->strokefmt == nil){
+					fmtlen = 2;
+					newfmt = emalloc(fmtlen);
+				}else{
+					fmtlen = strlen(mainobj.mdl->strokefmt)+2;
+					newfmt = emalloc(fmtlen);
+					memmove(newfmt, mainobj.mdl->strokefmt, fmtlen-2);
+				}
+				newfmt[fmtlen-2] = 'c';
+				newfmt[fmtlen-1] = 0;
+				free(mainobj.mdl->strokefmt);
+				mainobj.mdl->strokefmt = newfmt;
+			}
+			break;
+		}
+	}
 }
 
 void
@@ -308,7 +359,7 @@ key(Rune r)
 	switch(r){
 	case Kdel:
 	case 'q':
-		writevmodel(mainobj.mdl);
+		writevmodel(mainobj.mdl, vmdlfile);
 		threadexitsall(nil);
 	case 'l':
 		stroke = SLine;
@@ -316,13 +367,16 @@ key(Rune r)
 	case 'c':
 		stroke = SCurve;
 		break;
+	case Kesc:
+		ptstkp = &ptstk[0];
+		break;
 	}
 }
 
 void
 usage(void)
 {
-	fprint(2, "usage: %s\n", argv0);
+	fprint(2, "usage: %s file\n", argv0);
 	exits("usage");
 }
 
@@ -337,8 +391,10 @@ threadmain(int argc, char *argv[])
 	ARGBEGIN{
 	default: usage();
 	}ARGEND;
-	if(argc > 0)
+	if(argc != 1)
 		usage();
+
+	vmdlfile = argv[0];
 
 	if(newwindow(nil) < 0)
 		sysfatal("newwindow: %r");
@@ -357,9 +413,11 @@ threadmain(int argc, char *argv[])
 	mainobj.scale = obj_scale;
 	mainobj.rotate = obj_rotate;
 
-	mainobj.mdl = readvmodel("../assets/mdl/wedge.vmdl");
+	mainobj.mdl = readvmodel(vmdlfile);
 	if(mainobj.mdl == nil)
 		sysfatal("readvmodel: %r");
+
+	ptstkp = &ptstk[0];
 
 	display->locking = 1;
 	unlockdisplay(display);

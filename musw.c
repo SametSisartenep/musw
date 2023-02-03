@@ -127,7 +127,7 @@ drawship(Ship *ship, Image *dst)
 	mulm(T, R);
 	mdl = ship->mdl;
 	p = mdl->pts;
-	for(s = mdl->strokefmt; s != 0 && p-mdl->pts < mdl->npts; s++)
+	for(s = mdl->strokefmt; s != nil && p-mdl->pts < mdl->npts; s++)
 		switch(*s){
 		case 'l':
 			line(dst, toscreen(xform(p[0], T)), toscreen(xform(p[1], T)), 0, 0, 0, display->white, ZP);
