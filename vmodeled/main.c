@@ -21,6 +21,7 @@ struct VModel
 {
 	Point2 *pts;
 	ulong npts;
+	ulong cap;
 	/* WIP
 	 * l(ine) → takes 2 points
 	 * c(urve) → takes 3 points
@@ -49,6 +50,7 @@ Stroke stroke;
 Point2 ptstk[3];
 Point2 *ptstkp;
 char *vmdlfile;
+Image *ptselcol;
 
 void resized(void);
 
@@ -80,6 +82,17 @@ erealloc(void *p, ulong n)
 	else
 		setrealloctag(np, getcallerpc(&p));
 	return np;
+}
+
+Image*
+eallocimage(Display *d, Rectangle r, ulong chan, int repl, ulong col)
+{
+	Image *i;
+
+	i = allocimage(d, r, chan, repl, col);
+	if(i == nil)
+		sysfatal("allocimage: %r");
+	return i;
 }
 
 Point
@@ -128,7 +141,7 @@ readvmodel(char *file)
 
 	mdl = emalloc(sizeof(VModel));
 	mdl->pts = nil;
-	mdl->npts = 0;
+	mdl->npts = mdl->cap = 0;
 	mdl->strokefmt = nil;
 
 	lineno = 0;
@@ -147,7 +160,8 @@ readvmodel(char *file)
 				Bterm(bin);
 				return nil;
 			}
-			mdl->pts = erealloc(mdl->pts, ++mdl->npts*sizeof(Point2));
+			mdl->cap = ++mdl->npts;
+			mdl->pts = erealloc(mdl->pts, mdl->cap*sizeof(Point2));
 			mdl->pts[mdl->npts-1].x = strtod(args[0], nil);
 			mdl->pts[mdl->npts-1].y = strtod(args[1], nil);
 			mdl->pts[mdl->npts-1].w = 1;
@@ -198,13 +212,29 @@ drawvmodel(Image *dst, VModel *mdl)
 	for(s = mdl->strokefmt; s != nil && p-mdl->pts < mdl->npts; s++)
 		switch(*s){
 		case 'l':
-			line(dst, toscreen(invrframexform(p[0], mainobj)), toscreen(invrframexform(p[1], mainobj)), 0, 0, 0, display->white, ZP);
+			for(i = 0; i < nelem(pts)-1; i++)
+				pts[i] = toscreen(invrframexform(p[i], mainobj));
+
+			line(dst, pts[0], pts[1], 0, 0, 0, display->white, ZP);
+
+			for(i = 0; i < nelem(pts)-1; i++){
+				fillellipse(dst, pts[i], 2, 2, ptselcol, ZP);
+				draw(dst, rectaddpt(Rect(0,0,1,1), pts[i]), display->black, nil, ZP);
+			}
+
 			p += 2;
 			break;
 		case 'c':
 			for(i = 0; i < nelem(pts); i++)
 				pts[i] = toscreen(invrframexform(p[i], mainobj));
+
 			bezspline(dst, pts, nelem(pts), 0, 0, 0, display->white, ZP);
+
+			for(i = 0; i < nelem(pts); i++){
+				fillellipse(dst, pts[i], 2, 2, ptselcol, ZP);
+				draw(dst, rectaddpt(Rect(0,0,1,1), pts[i]), display->black, nil, ZP);
+			}
+
 			p += 3;
 			break;
 		}
@@ -245,57 +275,93 @@ redraw(void)
 }
 
 void
+undo(void)
+{
+	VModel *mdl;
+	char *fmtp;
+
+	mdl = mainobj.mdl;
+
+	if(mdl->npts < 1)
+		return;
+
+	fmtp = &mdl->strokefmt[strlen(mdl->strokefmt)-1];
+	switch(*fmtp){
+	case 'l':
+		mdl->npts -= 2;
+		break;
+	case 'c':
+		mdl->npts -= 3;
+		break;
+	}
+	*fmtp = 0;
+}
+
+void
 plot(Mousectl *mc, Keyboardctl *)
 {
 	Point2 p;
+	VModel *mdl;
 	char *newfmt;
 	ulong fmtlen;
 
 	p = rframexform(fromscreen(mc->xy), mainobj);
+	mdl = mainobj.mdl;
+
 	if(ptstkp-ptstk < nelem(ptstk)){
 		*ptstkp++ = p;
 		switch(stroke){
 		case SLine:
 			if(ptstkp-ptstk == 2){
-				mainobj.mdl->npts += 2;
-				mainobj.mdl->pts = erealloc(mainobj.mdl->pts, mainobj.mdl->npts*sizeof(Point2));
-				mainobj.mdl->pts[mainobj.mdl->npts-2] = ptstk[0];
-				mainobj.mdl->pts[mainobj.mdl->npts-1] = ptstk[1];
+				mdl->npts += 2;
+				if(mdl->npts > mdl->cap){
+					mdl->cap = mdl->npts;
+					mdl->pts = erealloc(mdl->pts, mdl->cap*sizeof(Point2));
+				}
+				mdl->pts[mdl->npts-2] = ptstk[0];
+				mdl->pts[mdl->npts-1] = ptstk[1];
 				ptstkp = &ptstk[0];
-				if(mainobj.mdl->strokefmt == nil){
+
+				if(mdl->strokefmt == nil){
 					fmtlen = 2;
 					newfmt = emalloc(fmtlen);
 				}else{
-					fmtlen = strlen(mainobj.mdl->strokefmt)+2;
+					fmtlen = strlen(mdl->strokefmt)+2;
 					newfmt = emalloc(fmtlen);
-					memmove(newfmt, mainobj.mdl->strokefmt, fmtlen-2);
+					memmove(newfmt, mdl->strokefmt, fmtlen-2);
 				}
+
 				newfmt[fmtlen-2] = 'l';
 				newfmt[fmtlen-1] = 0;
-				free(mainobj.mdl->strokefmt);
-				mainobj.mdl->strokefmt = newfmt;
+				free(mdl->strokefmt);
+				mdl->strokefmt = newfmt;
 			}
 			break;
 		case SCurve:
 			if(ptstkp-ptstk == 3){
-				mainobj.mdl->npts += 3;
-				mainobj.mdl->pts = erealloc(mainobj.mdl->pts, mainobj.mdl->npts*sizeof(Point2));
-				mainobj.mdl->pts[mainobj.mdl->npts-3] = ptstk[0];
-				mainobj.mdl->pts[mainobj.mdl->npts-2] = ptstk[1];
-				mainobj.mdl->pts[mainobj.mdl->npts-1] = ptstk[2];
+				mdl->npts += 3;
+				if(mdl->npts > mdl->cap){
+					mdl->cap = mdl->npts;
+					mdl->pts = erealloc(mdl->pts, mdl->cap*sizeof(Point2));
+				}
+				mdl->pts[mdl->npts-3] = ptstk[0];
+				mdl->pts[mdl->npts-2] = ptstk[1];
+				mdl->pts[mdl->npts-1] = ptstk[2];
 				ptstkp = &ptstk[0];
-				if(mainobj.mdl->strokefmt == nil){
+
+				if(mdl->strokefmt == nil){
 					fmtlen = 2;
 					newfmt = emalloc(fmtlen);
 				}else{
-					fmtlen = strlen(mainobj.mdl->strokefmt)+2;
+					fmtlen = strlen(mdl->strokefmt)+2;
 					newfmt = emalloc(fmtlen);
-					memmove(newfmt, mainobj.mdl->strokefmt, fmtlen-2);
+					memmove(newfmt, mdl->strokefmt, fmtlen-2);
 				}
+
 				newfmt[fmtlen-2] = 'c';
 				newfmt[fmtlen-1] = 0;
-				free(mainobj.mdl->strokefmt);
-				mainobj.mdl->strokefmt = newfmt;
+				free(mdl->strokefmt);
+				mdl->strokefmt = newfmt;
 			}
 			break;
 		}
@@ -359,13 +425,18 @@ key(Rune r)
 	switch(r){
 	case Kdel:
 	case 'q':
-		writevmodel(mainobj.mdl, vmdlfile);
 		threadexitsall(nil);
+	case 'w':
+		writevmodel(mainobj.mdl, vmdlfile);
+		break;
 	case 'l':
 		stroke = SLine;
 		break;
 	case 'c':
 		stroke = SCurve;
+		break;
+	case 'z':
+		undo();
 		break;
 	case Kesc:
 		ptstkp = &ptstk[0];
@@ -418,6 +489,8 @@ threadmain(int argc, char *argv[])
 		sysfatal("readvmodel: %r");
 
 	ptstkp = &ptstk[0];
+
+	ptselcol = eallocimage(display, Rect(0,0,1,1), screen->chan, 1, DYellow);
 
 	display->locking = 1;
 	unlockdisplay(display);
