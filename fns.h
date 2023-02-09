@@ -24,12 +24,6 @@ int pack(uchar*, int, char*, ...);
 int unpack(uchar*, int, char*, ...);
 
 /*
- * lobby
- */
-Lobby *newlobby(void);
-void dellobby(Lobby*);
-
-/*
  * party
  */
 Party *newparty(Party*, Player[2]);

@@ -8,66 +8,99 @@
 #include "fns.h"
 
 int debug;
+int mainstacksize = 24*1024;
 
-Lobby *lobby;
 Party theparty;
+Channel *ingress;
+Channel *egress;
 
 
 void
-threadlisten(void *arg)
+threadnetrecv(void *arg)
 {
-	uchar buf[MTU], *p, *e;
+	uchar buf[MTU];
 	int fd, n;
-	ushort rport, lport;
-	ulong kdown;
 	Ioproc *io;
 	Frame *frame;
 
+	threadsetname("threadnetrecv");
+
 	fd = *(int*)arg;
 	io = ioproc();
-	frame = emalloc(sizeof(Frame));
 
 	while((n = ioread(io, fd, buf, sizeof buf)) > 0){
-		p = buf;
-		e = buf+n;
-
-		unpack(p, e-p, "F", frame);
-
-		rport = frame->udp->rport[0]<<8 | frame->udp->rport[1];
-		lport = frame->udp->lport[0]<<8 | frame->udp->lport[1];
-		
-		unpack(frame->data, frame->len, "k", &kdown);
-
-		if(debug)
-			fprint(2, "%I!%d → %I!%d | %d (%d) rcvd seq %ud ack %ud id %ud len %ud %.*lub\n",
-				frame->udp->raddr, rport, frame->udp->laddr, lport, threadid(), getpid(), frame->seq, frame->ack, frame->id, frame->len, sizeof(kdown)*8, kdown);
+		frame = emalloc(sizeof(Frame)+(n-Udphdrsize-Framehdrsize));
+		unpack(buf, n, "F", frame);
+		sendp(ingress, frame);
 	}
 	closeioproc(io);
 }
 
 void
+threadnetppu(void *)
+{
+	ushort rport, lport;
+	ulong kdown;
+	Frame *frame;
+
+	threadsetname("threadnetppu");
+
+	while((frame = recvp(ingress)) != nil){
+		rport = frame->udp.rport[0]<<8 | frame->udp.rport[1];
+		lport = frame->udp.lport[0]<<8 | frame->udp.lport[1];
+
+		switch(frame->type){
+		case NCinput:
+			unpack(frame->data, frame->len, "k", &kdown);
+
+			if(debug){
+				fprint(2, "%I!%d ← %I!%d | rcvd type %ud seq %ud ack %ud len %ud %.*lub\n",
+					frame->udp.laddr, lport, frame->udp.raddr, rport,
+					frame->type, frame->seq, frame->ack, frame->len,
+					sizeof(kdown)*8, kdown);
+			}
+			break;
+		}
+
+		free(frame);
+	}
+}
+
+void
+threadnetsend(void *arg)
+{
+	uchar buf[MTU];
+	int fd, n;
+	Frame *frame;
+
+	threadsetname("threadnetsend");
+
+	fd = *(int*)arg;
+
+	while((frame = recvp(egress)) != nil){
+		n = pack(buf, sizeof buf, "F", frame);
+		free(frame);
+		if(write(fd, buf, n) != n)
+			sysfatal("write: %r");
+	}
+}
+
+void
 broadcaststate(void)
 {
-	int i, n;
-	uchar buf[1024];
-	Player *player;
+	int i;
+	Frame *frame;
+//	Player *player;
 	Party *p;
 
 	for(p = theparty.next; p != &theparty; p = p->next){
-		n = pack(buf, sizeof buf, "PdPdP",
+		frame = emalloc(sizeof(Frame)+2*(3*8+8)+3*8);
+		pack(frame->data, frame->len, "PdPdP",
 			p->u->ships[0].p, p->u->ships[0].θ,
 			p->u->ships[1].p, p->u->ships[1].θ,
 			p->u->star.p);
 
 		for(i = 0; i < nelem(p->players); i++){
-			if(write(p->players[i].conn.data, buf, n) != n){
-				player = &p->players[i^1];
-				lobby->takeseat(lobby, player->conn.dir, player->conn.ctl, player->conn.data);
-				/* step back and delete the spoiled party */
-				p = p->prev;
-				delparty(p->next);
-				break;
-			}
 		}
 	}
 
@@ -79,7 +112,7 @@ threadsim(void *)
 	uvlong then, now;
 	double frametime, Δt;
 	Ioproc *io;
-	Player couple[2];
+//	Player couple[2];
 	Party *p;
 
 	Δt = 0.01;
@@ -87,12 +120,10 @@ threadsim(void *)
 	io = ioproc();
 
 	for(;;){
-		lobby->purge(lobby);
-
-		if(lobby->getcouple(lobby, couple) != -1){
-			newparty(&theparty, couple);
-			theparty.prev->u->reset(theparty.prev->u);
-		}
+//		if(lobby->getcouple(lobby, couple) != -1){
+//			newparty(&theparty, couple);
+//			theparty.prev->u->reset(theparty.prev->u);
+//		}
 
 		now = nanosec();
 		frametime = now - then;
@@ -123,13 +154,13 @@ fprintstats(int fd)
 	for(p = theparty.next; p != &theparty; p = p->next)
 		nparties++;
 
-	fprint(fd, "curplayers	%lud\n"
-		   "totplayers	%lud\n"
-		   "maxplayers	%lud\n"
-		   "curparties	%lud\n"
-		   "totparties	%lud\n",
-		lobby->nseats, (ulong)0, lobby->cap,
-		nparties, (ulong)0);
+//	fprint(fd, "curplayers	%lud\n"
+//		   "totplayers	%lud\n"
+//		   "maxplayers	%lud\n"
+//		   "curparties	%lud\n"
+//		   "totparties	%lud\n",
+//		lobby->nseats, 0UL, lobby->cap,
+//		nparties, 0UL);
 }
 
 void
@@ -232,11 +263,14 @@ threadmain(int argc, char *argv[])
 	if(debug)
 		fprint(2, "listening on %s\n", addr);
 
-	lobby = newlobby();
 	initparty(&theparty);
 
-	threadcreate(threadC2, nil, 4096);
-	threadcreate(threadlisten, &adfd, 4096);
-	threadcreate(threadsim, nil, 4096);
+	ingress = chancreate(sizeof(Frame*), 32);
+	egress = chancreate(sizeof(Frame*), 32);
+	threadcreate(threadC2, nil, mainstacksize);
+	threadcreate(threadnetrecv, &adfd, mainstacksize);
+	threadcreate(threadnetppu, nil, mainstacksize);
+	threadcreate(threadnetsend, &adfd, mainstacksize);
+	threadcreate(threadsim, nil, mainstacksize);
 	threadexits(nil);
 }

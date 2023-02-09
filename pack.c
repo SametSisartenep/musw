@@ -1,5 +1,6 @@
 #include <u.h>
 #include <libc.h>
+#include <pool.h>
 #include <ip.h>
 #include <draw.h>
 #include <geometry.h>
@@ -37,7 +38,7 @@ vpack(uchar *p, int n, char *fmt, va_list a)
 	ulong k;
 	FPdbleword d;
 	Point2 P;
-	Frame *F;
+	Frame *F = nil;
 
 	for(;;){
 		switch(*fmt++){
@@ -74,13 +75,25 @@ vpack(uchar *p, int n, char *fmt, va_list a)
 		case 'F':
 			F = va_arg(a, Frame*);
 
+			if(p+Udphdrsize > e)
+				goto err;
+
+			memmove(p, &F->udp, Udphdrsize), p += Udphdrsize;
+			/* fallthrough */
+		case 'f':
+			if(F == nil)
+				F = va_arg(a, Frame*);
+
 			if(p+Framehdrsize+F->len > e)
 				goto err;
 
+			*p++ = F->type;
 			put4(p, F->seq), p += 4;
 			put4(p, F->ack), p += 4;
-			put4(p, F->id), p += 4;
 			put2(p, F->len), p += 2;
+
+			if(p+F->len > e)
+				goto err;
 			memmove(p, F->data, F->len), p += F->len;
 
 			break;
@@ -97,7 +110,7 @@ vunpack(uchar *p, int n, char *fmt, va_list a)
 	ulong k;
 	FPdbleword d;
 	Point2 P;
-	Frame *F;
+	Frame *F = nil;
 
 	for(;;){
 		switch(*fmt++){
@@ -129,24 +142,29 @@ vunpack(uchar *p, int n, char *fmt, va_list a)
 
 			break;
 		case 'F':
-			if(p+Udphdrsize+Framehdrsize > e)
+			if(p+Udphdrsize > e)
 				goto err;
 
 			F = va_arg(a, Frame*);
 
-			F->udp = (Udphdr*)p, p += Udphdrsize;
+			memmove(&F->udp, p, Udphdrsize), p += Udphdrsize;
+			/* fallthrough */
+		case 'f':
+			if(p+Framehdrsize > e)
+				goto err;
+
+			if(F == nil)
+				F = va_arg(a, Frame*);
+
+			F->type = *p++;
 			F->seq = get4(p), p += 4;
 			F->ack = get4(p), p += 4;
-			F->id = get4(p), p += 4;
 			F->len = get2(p), p += 2;
 
-			/* XXX: I'm not happy with this. */
 			if(p+F->len > e)
 				goto err;
 
-			F = erealloc(F, sizeof(Frame)+F->len);
-			memmove(F->data, p, F->len);
-			p += F->len;
+			memmove(F->data, p, F->len), p += F->len;
 
 			break;
 		}

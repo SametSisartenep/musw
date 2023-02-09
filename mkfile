@@ -11,7 +11,6 @@ OFILES=\
 	physics.$O\
 	nanosec.$O\
 	pack.$O\
-	lobby.$O\
 	party.$O\
 	universe.$O\
 	sprite.$O\

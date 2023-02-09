@@ -22,7 +22,24 @@ enum {
 };
 
 enum {
-	Framehdrsize	= 4+4+4+2,
+	NChi	= 10,	/* C wants to connect */
+	NShi,		/* S accepts */
+	NCdhx0	= 12,	/* C asks for p and g */
+	NSdhx0,		/* S sends them. it's not a negotiation */
+	NCdhx1	= 14,	/* C shares pubkey */
+	NSdhx1,		/* S shares pubkey */
+	NCnudge	= 16,
+	NSnudge,	/* check the pulse of the line */
+
+	NCinput	= 20,	/* C sends player input state */
+	NSsimstate,	/* S sends current simulation state */
+
+	NCbuhbye	= 30,
+	NSbuhbye
+};
+
+enum {
+	Framehdrsize	= 1+4+4+2,
 	MTU		= 1024
 };
 
@@ -36,10 +53,8 @@ typedef struct Universe Universe;
 typedef struct Derivative Derivative;
 
 typedef struct Frame Frame;
-typedef struct Conn Conn;
-typedef struct PInput PInput;
+typedef struct NetConn NetConn;
 typedef struct Player Player;
-typedef struct Lobby Lobby;
 typedef struct Party Party;
 
 /*
@@ -118,44 +133,25 @@ struct Derivative
 
 struct Frame
 {
-	Udphdr *udp;
-	uint seq;
-	uint ack;
-	uint id;
-	ushort len;
+	Udphdr udp;
+	u8int type;
+	u32int seq;
+	u32int ack;
+	u16int len;
 	uchar data[];
 };
 
-struct Conn
+struct NetConn
 {
-	char dir[40];
-	int ctl;
-	int data;
-	int status;
-};
-
-struct PInput
-{
-	ulong kdown;
+	Udphdr udp;
+	int isconnected;
 };
 
 struct Player
 {
 	char *name;
-	Conn conn;
-	PInput oldinput, input;
-};
-
-struct Lobby
-{
-	Player *seats;
-	ulong nseats;
-	ulong cap;
-
-	int (*takeseat)(Lobby*, char*, int, int);
-	int (*leaveseat)(Lobby*, ulong);
-	int (*getcouple)(Lobby*, Player*);
-	void (*purge)(Lobby*);
+	NetConn conn;
+	ulong okdown, kdown;
 };
 
 struct Party

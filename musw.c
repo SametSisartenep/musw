@@ -35,7 +35,8 @@ RFrame screenrf;
 Universe *universe;
 VModel *needlemdl, *wedgemdl;
 Image *skymap;
-Channel *kchan;
+Channel *ingress;
+Channel *egress;
 char winspec[32];
 int debug;
 
@@ -143,6 +144,20 @@ drawship(Ship *ship, Image *dst)
 }
 
 void
+sendkeys(ulong kdown)
+{
+	Frame *frame;
+
+	frame = emalloc(sizeof(Frame)+sizeof(kdown));
+	frame->type = NCinput;
+	frame->seq = 0;
+	frame->ack = 0;
+	frame->len = sizeof(kdown);
+	pack(frame->data, frame->len, "k", kdown);
+	sendp(egress, frame);
+}
+
+void
 kbdproc(void *)
 {
 	Rune r;
@@ -188,30 +203,52 @@ kbdproc(void *)
 		}
 
 		if(debug)
-			fprint(2, "kdown %.*lub\n",
-				sizeof(kdown)*8, kdown);
+			fprint(2, "kdown %.*lub\n", sizeof(kdown)*8, kdown);
 
-		nbsendul(kchan, kdown);
+		sendkeys(kdown);
 	}
 }
 
 void
 threadnetrecv(void *arg)
 {
-	uchar buf[1024];
+	uchar buf[MTU];
 	int fd, n;
 	Ioproc *io;
+	Frame *frame;
+
+	threadsetname("threadnetrecv");
 
 	fd = *(int*)arg;
 	io = ioproc();
 
 	while((n = ioread(io, fd, buf, sizeof buf)) > 0){
-		unpack(buf, n, "PdPdP",
-			&universe->ships[0].p, &universe->ships[0].θ,
-			&universe->ships[1].p, &universe->ships[1].θ,
-			&universe->star.p);
+		frame = emalloc(sizeof(Frame)+(n-Framehdrsize));
+		unpack(buf, n, "f", frame);
+		sendp(ingress, frame);
 	}
 	closeioproc(io);
+}
+
+void
+threadnetppu(void *)
+{
+	Frame *frame;
+
+	threadsetname("threadnetppu");
+
+	while((frame = recvp(ingress)) != nil){
+		switch(frame->type){
+		case NSsimstate:
+			unpack(frame->data, frame->len, "PdPdP",
+				&universe->ships[0].p, &universe->ships[0].θ,
+				&universe->ships[1].p, &universe->ships[1].θ,
+				&universe->star.p);
+			break;
+		}
+
+		free(frame);
+	}
 }
 
 void
@@ -219,25 +256,15 @@ threadnetsend(void *arg)
 {
 	uchar buf[MTU];
 	int fd, n;
-	ulong kdown;
 	Frame *frame;
 
+	threadsetname("threadnetsend");
+
 	fd = *(int*)arg;
-	frame = emalloc(sizeof(Frame)+sizeof(kdown));
-	frame->udp = nil;
-	frame->seq = ntruerand(1000)>>1;
-	frame->ack = 0;
-	frame->id = truerand();
-	frame->len = sizeof(kdown);
 
-	for(;;){
-		kdown = recvul(kchan);
-
-		frame->seq++;
-
-		pack(frame->data, frame->len, "k", kdown);
-
-		n = pack(buf, sizeof buf, "F", frame);
+	while((frame = recvp(egress)) != nil){
+		n = pack(buf, sizeof buf, "f", frame);
+		free(frame);
 		if(write(fd, buf, n) != n)
 			sysfatal("write: %r");
 	}
@@ -273,7 +300,7 @@ initskymap(void)
 	skymap = readimage(display, fd, 1);
 	if(skymap == nil){
 darkness:
-		fprint(2, "couldn't read a sky map. falling back to darkness...\n");
+		fprint(2, "couldn't read the sky map. falling back to darkness...\n");
 		skymap = display->black;
 	}
 	close(fd);
@@ -364,7 +391,6 @@ threadmain(int argc, char *argv[])
 	screenrf.bx = Vec2(1, 0);
 	screenrf.by = Vec2(0,-1);
 
-	kchan = chancreate(sizeof kdown, 1);
 	proccreate(kbdproc, nil, 4096);
 
 	/* TODO: draw a CONNECTING... sign */
@@ -386,9 +412,11 @@ threadmain(int argc, char *argv[])
 
 	initskymap();
 
-	threadcreate(threadnetrecv, &fd, 4096);
-	threadcreate(threadnetsend, &fd, 4096);
-	threadcreate(threadresize, mc, 4096);
+	ingress = chancreate(sizeof(Frame*), 8);
+	egress = chancreate(sizeof(Frame*), 8);
+	threadcreate(threadnetrecv, &fd, mainstacksize);
+	threadcreate(threadnetsend, &fd, mainstacksize);
+	threadcreate(threadresize, mc, mainstacksize);
 
 	then = nanosec();
 	io = ioproc();
