@@ -15,6 +15,7 @@ OFILES=\
 	universe.$O\
 	sprite.$O\
 	net.$O\
+	fmt.$O\
 
 HFILES=\
 	dat.h\

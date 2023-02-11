@@ -46,7 +46,7 @@ enum {
 
 enum {
 	ProtocolID	= 0x5753554d,	/* MUSW */
-	Framehdrsize	= 4+1+4+4+2,
+	Framehdrsize	= 4+1+4+4+2+MD5dlen,
 	MTU		= 1024
 };
 
@@ -147,6 +147,7 @@ struct Frame
 	u32int seq;
 	u32int ack;
 	u16int len;
+	uchar sig[MD5dlen];
 	uchar data[];
 };
 
@@ -177,3 +178,5 @@ struct Party
 	Universe *u;
 	Party *prev, *next;
 };
+
+#pragma varargck type "Φ" Frame*

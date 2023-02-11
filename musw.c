@@ -1,6 +1,8 @@
 #include <u.h>
 #include <libc.h>
 #include <ip.h>
+#include <mp.h>
+#include <libsec.h>
 #include <bio.h>
 #include <thread.h>
 #include <draw.h>
@@ -164,6 +166,7 @@ sendkeys(ulong kdown)
 
 	frame = newframe(nil, NCinput, 0, 0, sizeof(kdown), nil);
 	pack(frame->data, frame->len, "k", kdown);
+	signframe(frame, netconn.dh.priv);
 	sendp(egress, frame);
 }
 
@@ -241,9 +244,8 @@ threadnetrecv(void *arg)
 		if(debug){
 			rport = frame->udp.rport[0]<<8 | frame->udp.rport[1];
 			lport = frame->udp.lport[0]<<8 | frame->udp.lport[1];
-			fprint(2, "%I!%ud ← %I!%ud | rcvd type %ud seq %ud ack %ud len %ud\n",
-				frame->udp.laddr, lport, frame->udp.raddr, rport,
-				frame->type, frame->seq, frame->ack, frame->len);
+			fprint(2, "%I!%ud → %I!%ud | rcvd %Φ\n",
+				frame->udp.laddr, lport, frame->udp.raddr, rport, frame);
 		}
 	}
 	closeioproc(io);
@@ -267,27 +269,33 @@ threadnetppu(void *)
 				unpack(frame->data, frame->len, "kk", &netconn.dh.p, &netconn.dh.g);
 
 				newf = newframe(frame, NCdhx, 0, 0, sizeof(ulong), nil);
-	
+
 				netconn.dh.sec = truerand();
 				pack(newf->data, newf->len, "k", dhgenkey(netconn.dh.g, netconn.dh.sec, netconn.dh.p));
 				sendp(egress, newf);
 
 				if(debug)
 					fprint(2, "\tsent pubkey %ld\n", dhgenkey(netconn.dh.g, netconn.dh.sec, netconn.dh.p));
-	
+
 				break;
 			case NSdhx:
 				unpack(frame->data, frame->len, "k", &netconn.dh.pub);
 				netconn.state = NCSConnected;
 
 				if(debug)
-					fprint(2, "\trecvd pubkey %ld\n", netconn.dh.pub);
+					fprint(2, "\trcvd pubkey %ld\n", netconn.dh.pub);
 
 				netconn.dh.priv = dhgenkey(netconn.dh.pub, netconn.dh.sec, netconn.dh.p);
 				break;
 			}
 			break;
 		case NCSConnected:
+			if(verifyframe(frame, netconn.dh.priv) != 0){
+				if(debug)
+					fprint(2, "\tbad signature\n");
+				goto discard;
+			}
+
 			switch(frame->type){
 			case NSsimstate:
 				unpack(frame->data, frame->len, "PdPdP",
@@ -297,6 +305,7 @@ threadnetppu(void *)
 				break;
 			case NSnudge:
 				newf = newframe(frame, NCnudge, 0, 0, 0, nil);
+				signframe(newf, netconn.dh.priv);
 
 				sendp(egress, newf);
 
@@ -308,7 +317,7 @@ threadnetppu(void *)
 			break;
 		}
 discard:
-		free(frame);
+		delframe(frame);
 	}
 }
 
@@ -332,9 +341,8 @@ threadnetsend(void *arg)
 		if(debug){
 			rport = frame->udp.rport[0]<<8 | frame->udp.rport[1];
 			lport = frame->udp.lport[0]<<8 | frame->udp.lport[1];
-			fprint(2, "%I!%ud → %I!%ud | sent type %ud seq %ud ack %ud len %ud\n",
-				frame->udp.laddr, lport, frame->udp.raddr, rport,
-				frame->type, frame->seq, frame->ack, frame->len);
+			fprint(2, "%I!%ud → %I!%ud | sent %Φ\n",
+				frame->udp.laddr, lport, frame->udp.raddr, rport, frame);
 		}
 
 		free(frame);
@@ -438,6 +446,7 @@ threadmain(int argc, char *argv[])
 
 	GEOMfmtinstall();
 	fmtinstall('I', eipfmt);
+	fmtinstall(L'Φ', Φfmt);
 	ARGBEGIN{
 	case 'd':
 		debug++;

@@ -1,6 +1,8 @@
 #include <u.h>
 #include <libc.h>
 #include <ip.h>
+#include <mp.h>
+#include <libsec.h>
 #include <draw.h>
 #include <geometry.h>
 #include "dat.h"

@@ -53,4 +53,11 @@ ulong dhgenkey(ulong, ulong, ulong);
 NetConn *newnetconn(NCState, Udphdr*);
 void delnetconn(NetConn*);
 Frame *newframe(Frame*, u8int, u32int, u32int, u16int, uchar*);
+void signframe(Frame*, ulong);
+int verifyframe(Frame*, ulong);
 void delframe(Frame*);
+
+/*
+ * fmt
+ */
+int Φfmt(Fmt*);

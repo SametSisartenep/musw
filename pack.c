@@ -1,6 +1,8 @@
 #include <u.h>
 #include <libc.h>
 #include <ip.h>
+#include <mp.h>
+#include <libsec.h>
 #include <draw.h>
 #include <geometry.h>
 #include "dat.h"
@@ -91,6 +93,7 @@ vpack(uchar *p, int n, char *fmt, va_list a)
 			put4(p, F->seq), p += 4;
 			put4(p, F->ack), p += 4;
 			put2(p, F->len), p += 2;
+			memmove(p, F->sig, MD5dlen), p += MD5dlen;
 
 			if(p+F->len > e)
 				goto err;
@@ -161,6 +164,7 @@ vunpack(uchar *p, int n, char *fmt, va_list a)
 			F->seq = get4(p), p += 4;
 			F->ack = get4(p), p += 4;
 			F->len = get2(p), p += 2;
+			memmove(F->sig, p, MD5dlen), p += MD5dlen;
 
 			if(p+F->len > e)
 				goto err;
