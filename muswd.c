@@ -11,15 +11,56 @@ int debug;
 int mainstacksize = 24*1024;
 
 Party theparty;
+NetConn **conns;
+usize nconns;
+usize maxconns;
 Channel *ingress;
 Channel *egress;
 
+
+void
+putconn(NetConn *nc)
+{
+	if(++nconns > maxconns){
+		conns = erealloc(conns, sizeof(NetConn*)*nconns);
+		maxconns = nconns;
+	}
+	conns[nconns-1] = nc;
+}
+
+NetConn *
+getconn(Frame *f)
+{
+	NetConn **nc;
+
+	for(nc = conns; nc < conns+nconns; nc++)
+		if(memcmp(&(*nc)->udp, &f->udp, Udphdrsize) == 0)
+			return *nc;
+	return nil;
+}
+
+int
+popconn(NetConn *nc)
+{
+	NetConn **ncp, **ncpe;
+
+	ncpe = conns+nconns;
+
+	for(ncp = conns; ncp < conns+nconns; ncp++)
+		if(*ncp == nc){
+			memmove(ncp, ncp+1, sizeof(NetConn*)*(ncpe-ncp-1));
+			nconns--;
+			return 0;
+		}
+	return -1;
+}
 
 void
 threadnetrecv(void *arg)
 {
 	uchar buf[MTU];
 	int fd, n;
+	ushort rport, lport;
 	Ioproc *io;
 	Frame *frame;
 
@@ -29,9 +70,17 @@ threadnetrecv(void *arg)
 	io = ioproc();
 
 	while((n = ioread(io, fd, buf, sizeof buf)) > 0){
-		frame = emalloc(sizeof(Frame)+(n-Udphdrsize-Framehdrsize));
+		frame = newframe(nil, 0, 0, 0, n-Udphdrsize-Framehdrsize, nil);
 		unpack(buf, n, "F", frame);
 		sendp(ingress, frame);
+
+		if(debug){
+			rport = frame->udp.rport[0]<<8 | frame->udp.rport[1];
+			lport = frame->udp.lport[0]<<8 | frame->udp.lport[1];
+			fprint(2, "%I!%ud ← %I!%ud | rcvd type %ud seq %ud ack %ud len %ud\n",
+				frame->udp.laddr, lport, frame->udp.raddr, rport,
+				frame->type, frame->seq, frame->ack, frame->len);
+		}
 	}
 	closeioproc(io);
 }
@@ -39,29 +88,74 @@ threadnetrecv(void *arg)
 void
 threadnetppu(void *)
 {
-	ushort rport, lport;
 	ulong kdown;
-	Frame *frame;
+	Frame *frame, *newf;
+	NetConn *nc;
 
 	threadsetname("threadnetppu");
 
 	while((frame = recvp(ingress)) != nil){
-		rport = frame->udp.rport[0]<<8 | frame->udp.rport[1];
-		lport = frame->udp.lport[0]<<8 | frame->udp.lport[1];
+		if(frame->id != ProtocolID)
+			goto discard;
 
-		switch(frame->type){
-		case NCinput:
-			unpack(frame->data, frame->len, "k", &kdown);
+		nc = getconn(frame);
+		if(nc == nil){
+			if(frame->type == NChi){
+				nc = newnetconn(NCSConnecting, &frame->udp);
+				putconn(nc);
+	
+				newf = newframe(frame, NShi, 0, 0, 2*sizeof(ulong), nil);
+	
+				dhgenpg(&nc->dh.p, &nc->dh.g);
+				pack(newf->data, newf->len, "kk", nc->dh.p, nc->dh.g);
+				sendp(egress, newf);
+	
+				if(debug)
+					fprint(2, "\tsent p %ld g %ld\n", nc->dh.p, nc->dh.g);
+			}else
+				goto discard;
+		}
 
-			if(debug){
-				fprint(2, "%I!%d ← %I!%d | rcvd type %ud seq %ud ack %ud len %ud %.*lub\n",
-					frame->udp.laddr, lport, frame->udp.raddr, rport,
-					frame->type, frame->seq, frame->ack, frame->len,
-					sizeof(kdown)*8, kdown);
+		switch(nc->state){
+		case NCSConnecting:
+			switch(frame->type){
+			case NCdhx:
+				unpack(frame->data, frame->len, "k", &nc->dh.pub);
+				nc->state = NCSConnected;
+
+				if(debug)
+					fprint(2, "\trecvd pubkey %ld\n", nc->dh.pub);
+
+				newf = newframe(frame, NSdhx, 0, 0, sizeof(ulong), nil);
+	
+				nc->dh.sec = truerand();
+				nc->dh.priv = dhgenkey(nc->dh.pub, nc->dh.sec, nc->dh.p);
+				pack(newf->data, newf->len, "k", dhgenkey(nc->dh.g, nc->dh.sec, nc->dh.p));
+				sendp(egress, newf);
+
+				if(debug)
+					fprint(2, "\tsent pubkey %ld\n", dhgenkey(nc->dh.g, nc->dh.sec, nc->dh.p));
+
+				break;
+			}
+			break;
+		case NCSConnected:
+			switch(frame->type){
+			case NCinput:
+				unpack(frame->data, frame->len, "k", &kdown);
+
+				if(debug)
+					fprint(2, "\t%.*lub\n", sizeof(kdown)*8, kdown);
+
+				break;
+			case NCbuhbye:
+				popconn(nc);
+				free(nc);
+				break;
 			}
 			break;
 		}
-
+discard:
 		free(frame);
 	}
 }
@@ -71,6 +165,7 @@ threadnetsend(void *arg)
 {
 	uchar buf[MTU];
 	int fd, n;
+	ushort rport, lport;
 	Frame *frame;
 
 	threadsetname("threadnetsend");
@@ -79,9 +174,18 @@ threadnetsend(void *arg)
 
 	while((frame = recvp(egress)) != nil){
 		n = pack(buf, sizeof buf, "F", frame);
-		free(frame);
 		if(write(fd, buf, n) != n)
 			sysfatal("write: %r");
+
+		if(debug){
+			rport = frame->udp.rport[0]<<8 | frame->udp.rport[1];
+			lport = frame->udp.lport[0]<<8 | frame->udp.lport[1];
+			fprint(2, "%I!%ud → %I!%ud | sent type %ud seq %ud ack %ud len %ud\n",
+				frame->udp.laddr, lport, frame->udp.raddr, rport,
+				frame->type, frame->seq, frame->ack, frame->len);
+		}
+
+		free(frame);
 	}
 }
 
@@ -148,19 +252,16 @@ threadsim(void *)
 void
 fprintstats(int fd)
 {
-	ulong nparties = 0;
+	usize nparties = 0;
 	Party *p;
 
 	for(p = theparty.next; p != &theparty; p = p->next)
 		nparties++;
 
-//	fprint(fd, "curplayers	%lud\n"
-//		   "totplayers	%lud\n"
-//		   "maxplayers	%lud\n"
-//		   "curparties	%lud\n"
-//		   "totparties	%lud\n",
-//		lobby->nseats, 0UL, lobby->cap,
-//		nparties, 0UL);
+	fprint(fd, "curconns	%lld\n"
+		   "maxconns	%lld\n"
+		   "nparties	%lld\n",
+		nconns, maxconns, nparties);
 }
 
 void
@@ -172,10 +273,10 @@ fprintstates(int fd)
 
 	for(p = theparty.next; p != &theparty; p = p->next, i++){
 		for(s = &p->u->ships[0]; s-p->u->ships < nelem(p->u->ships); s++){
-			fprint(fd, "%lud s%lld k%d p %v v %v θ %g ω %g m %g f %d\n",
+			fprint(fd, "%ld s%lld k%d p %v v %v θ %g ω %g m %g f %d\n",
 				i, s-p->u->ships, s->kind, s->p, s->v, s->θ, s->ω, s->mass, s->fuel);
 		}
-		fprint(fd, "%lud S p %v m %g\n", i, p->u->star.p, p->u->star.mass);
+		fprint(fd, "%ld S p %v m %g\n", i, p->u->star.p, p->u->star.mass);
 	}
 }
 

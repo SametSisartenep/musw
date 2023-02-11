@@ -1,6 +1,5 @@
 #include <u.h>
 #include <libc.h>
-#include <pool.h>
 #include <ip.h>
 #include <draw.h>
 #include <geometry.h>
@@ -87,6 +86,7 @@ vpack(uchar *p, int n, char *fmt, va_list a)
 			if(p+Framehdrsize+F->len > e)
 				goto err;
 
+			put4(p, F->id), p += 4;
 			*p++ = F->type;
 			put4(p, F->seq), p += 4;
 			put4(p, F->ack), p += 4;
@@ -156,6 +156,7 @@ vunpack(uchar *p, int n, char *fmt, va_list a)
 			if(F == nil)
 				F = va_arg(a, Frame*);
 
+			F->id = get4(p), p += 4;
 			F->type = *p++;
 			F->seq = get4(p), p += 4;
 			F->ack = get4(p), p += 4;

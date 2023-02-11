@@ -14,6 +14,12 @@ typedef enum {
 	WEDGE
 } Kind;
 
+typedef enum {
+	NCSDisconnected,
+	NCSConnecting,
+	NCSConnected
+} NCState;
+
 enum {
 	SCRW	= 640,
 	SCRH	= 480,
@@ -22,24 +28,25 @@ enum {
 };
 
 enum {
-	NChi	= 10,	/* C wants to connect */
-	NShi,		/* S accepts */
-	NCdhx0	= 12,	/* C asks for p and g */
-	NSdhx0,		/* S sends them. it's not a negotiation */
-	NCdhx1	= 14,	/* C shares pubkey */
-	NSdhx1,		/* S shares pubkey */
-	NCnudge	= 16,
-	NSnudge,	/* check the pulse of the line */
+	NChi		= 10,	/* C wants to connect */
+	NShi,			/* S accepts. sends P and G for DHX */
+	NCdhx		= 12,	/* C shares pubkey */
+	NSdhx,			/* S shares pubkey */
+	NCnudge		= 16,
+	NSnudge,		/* check the pulse of the line */
 
-	NCinput	= 20,	/* C sends player input state */
-	NSsimstate,	/* S sends current simulation state */
+	NCinput		= 20,	/* C sends player input state */
+	NSsimstate,		/* S sends current simulation state */
 
 	NCbuhbye	= 30,
-	NSbuhbye
+	NSbuhbye,
+
+	NSerror 	= 66	/* report an error */
 };
 
 enum {
-	Framehdrsize	= 1+4+4+2,
+	ProtocolID	= 0x5753554d,	/* MUSW */
+	Framehdrsize	= 4+1+4+4+2,
 	MTU		= 1024
 };
 
@@ -53,6 +60,7 @@ typedef struct Universe Universe;
 typedef struct Derivative Derivative;
 
 typedef struct Frame Frame;
+typedef struct DHparams DHparams;
 typedef struct NetConn NetConn;
 typedef struct Player Player;
 typedef struct Party Party;
@@ -63,7 +71,7 @@ typedef struct Party Party;
 struct VModel
 {
 	Point2 *pts;
-	ulong npts;
+	usize npts;
 	/* WIP
 	 * l(ine) → takes 2 points
 	 * c(urve) → takes 3 points
@@ -134,6 +142,7 @@ struct Derivative
 struct Frame
 {
 	Udphdr udp;
+	u32int id;	/* ProtocolID */
 	u8int type;
 	u32int seq;
 	u32int ack;
@@ -141,10 +150,18 @@ struct Frame
 	uchar data[];
 };
 
+struct DHparams
+{
+	ulong p, g, pub, sec, priv;
+};
+
 struct NetConn
 {
 	Udphdr udp;
-	int isconnected;
+	DHparams dh;
+	NCState state;
+	u32int lastseq;
+	u32int lastack;
 };
 
 struct Player

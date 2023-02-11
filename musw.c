@@ -37,6 +37,7 @@ VModel *needlemdl, *wedgemdl;
 Image *skymap;
 Channel *ingress;
 Channel *egress;
+NetConn netconn;
 char winspec[32];
 int debug;
 
@@ -85,7 +86,7 @@ readvmodel(char *file)
 			continue;
 		case 'v':
 			if(tokenize(s, args, nelem(args)) != nelem(args)){
-				werrstr("syntax error: %s:%lud 'v' expects %d args",
+				werrstr("syntax error: %s:%ld 'v' expects %d args",
 					file, lineno, nelem(args));
 				free(mdl);
 				Bterm(bin);
@@ -144,15 +145,24 @@ drawship(Ship *ship, Image *dst)
 }
 
 void
+initconn(void)
+{
+	Frame *frame;
+
+	frame = newframe(nil, NChi, 0, 0, 0, nil);
+	sendp(egress, frame);
+	netconn.state = NCSConnecting;
+}
+
+void
 sendkeys(ulong kdown)
 {
 	Frame *frame;
 
-	frame = emalloc(sizeof(Frame)+sizeof(kdown));
-	frame->type = NCinput;
-	frame->seq = 0;
-	frame->ack = 0;
-	frame->len = sizeof(kdown);
+	if(netconn.state != NCSConnected)
+		return;
+
+	frame = newframe(nil, NCinput, 0, 0, sizeof(kdown), nil);
 	pack(frame->data, frame->len, "k", kdown);
 	sendp(egress, frame);
 }
@@ -214,6 +224,7 @@ threadnetrecv(void *arg)
 {
 	uchar buf[MTU];
 	int fd, n;
+	ushort rport, lport;
 	Ioproc *io;
 	Frame *frame;
 
@@ -223,9 +234,17 @@ threadnetrecv(void *arg)
 	io = ioproc();
 
 	while((n = ioread(io, fd, buf, sizeof buf)) > 0){
-		frame = emalloc(sizeof(Frame)+(n-Framehdrsize));
+		frame = newframe(nil, 0, 0, 0, n-Framehdrsize, nil);
 		unpack(buf, n, "f", frame);
 		sendp(ingress, frame);
+
+		if(debug){
+			rport = frame->udp.rport[0]<<8 | frame->udp.rport[1];
+			lport = frame->udp.lport[0]<<8 | frame->udp.lport[1];
+			fprint(2, "%I!%ud ← %I!%ud | rcvd type %ud seq %ud ack %ud len %ud\n",
+				frame->udp.laddr, lport, frame->udp.raddr, rport,
+				frame->type, frame->seq, frame->ack, frame->len);
+		}
 	}
 	closeioproc(io);
 }
@@ -233,20 +252,62 @@ threadnetrecv(void *arg)
 void
 threadnetppu(void *)
 {
-	Frame *frame;
+	Frame *frame, *newf;
 
 	threadsetname("threadnetppu");
 
 	while((frame = recvp(ingress)) != nil){
-		switch(frame->type){
-		case NSsimstate:
-			unpack(frame->data, frame->len, "PdPdP",
-				&universe->ships[0].p, &universe->ships[0].θ,
-				&universe->ships[1].p, &universe->ships[1].θ,
-				&universe->star.p);
+		if(frame->id != ProtocolID)
+			goto discard;
+
+		switch(netconn.state){
+		case NCSConnecting:
+			switch(frame->type){
+			case NShi:
+				unpack(frame->data, frame->len, "kk", &netconn.dh.p, &netconn.dh.g);
+
+				newf = newframe(frame, NCdhx, 0, 0, sizeof(ulong), nil);
+	
+				netconn.dh.sec = truerand();
+				pack(newf->data, newf->len, "k", dhgenkey(netconn.dh.g, netconn.dh.sec, netconn.dh.p));
+				sendp(egress, newf);
+
+				if(debug)
+					fprint(2, "\tsent pubkey %ld\n", dhgenkey(netconn.dh.g, netconn.dh.sec, netconn.dh.p));
+	
+				break;
+			case NSdhx:
+				unpack(frame->data, frame->len, "k", &netconn.dh.pub);
+				netconn.state = NCSConnected;
+
+				if(debug)
+					fprint(2, "\trecvd pubkey %ld\n", netconn.dh.pub);
+
+				netconn.dh.priv = dhgenkey(netconn.dh.pub, netconn.dh.sec, netconn.dh.p);
+				break;
+			}
+			break;
+		case NCSConnected:
+			switch(frame->type){
+			case NSsimstate:
+				unpack(frame->data, frame->len, "PdPdP",
+					&universe->ships[0].p, &universe->ships[0].θ,
+					&universe->ships[1].p, &universe->ships[1].θ,
+					&universe->star.p);
+				break;
+			case NSnudge:
+				newf = newframe(frame, NCnudge, 0, 0, 0, nil);
+
+				sendp(egress, newf);
+
+				break;
+			case NSbuhbye:
+				netconn.state = NCSDisconnected;
+				break;
+			}
 			break;
 		}
-
+discard:
 		free(frame);
 	}
 }
@@ -256,6 +317,7 @@ threadnetsend(void *arg)
 {
 	uchar buf[MTU];
 	int fd, n;
+	ushort rport, lport;
 	Frame *frame;
 
 	threadsetname("threadnetsend");
@@ -264,9 +326,18 @@ threadnetsend(void *arg)
 
 	while((frame = recvp(egress)) != nil){
 		n = pack(buf, sizeof buf, "f", frame);
-		free(frame);
 		if(write(fd, buf, n) != n)
 			sysfatal("write: %r");
+
+		if(debug){
+			rport = frame->udp.rport[0]<<8 | frame->udp.rport[1];
+			lport = frame->udp.lport[0]<<8 | frame->udp.lport[1];
+			fprint(2, "%I!%ud → %I!%ud | sent type %ud seq %ud ack %ud len %ud\n",
+				frame->udp.laddr, lport, frame->udp.raddr, rport,
+				frame->type, frame->seq, frame->ack, frame->len);
+		}
+
+		free(frame);
 	}
 }
 
@@ -366,6 +437,7 @@ threadmain(int argc, char *argv[])
 	Ioproc *io;
 
 	GEOMfmtinstall();
+	fmtinstall('I', eipfmt);
 	ARGBEGIN{
 	case 'd':
 		debug++;
@@ -415,6 +487,7 @@ threadmain(int argc, char *argv[])
 	ingress = chancreate(sizeof(Frame*), 8);
 	egress = chancreate(sizeof(Frame*), 8);
 	threadcreate(threadnetrecv, &fd, mainstacksize);
+	threadcreate(threadnetppu, nil, mainstacksize);
 	threadcreate(threadnetsend, &fd, mainstacksize);
 	threadcreate(threadresize, mc, mainstacksize);
 
@@ -428,6 +501,9 @@ threadmain(int argc, char *argv[])
 		universe->star.spr->step(universe->star.spr, frametime/1e6);
 
 		redraw();
+
+		if(netconn.state == NCSDisconnected)
+			initconn();
 
 		iosleep(io, HZ2MS(30));
 	}

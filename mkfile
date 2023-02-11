@@ -14,6 +14,7 @@ OFILES=\
 	party.$O\
 	universe.$O\
 	sprite.$O\
+	net.$O\
 
 HFILES=\
 	dat.h\

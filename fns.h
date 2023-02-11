@@ -39,8 +39,18 @@ void deluniverse(Universe*);
 void inituniverse(Universe*);
 
 /*
- *	sprite
+ * sprite
  */
 Sprite *newsprite(Image*, Point, Rectangle, int, ulong);
 Sprite *readsprite(char*, Point, Rectangle, int, ulong);
 void delsprite(Sprite*);
+
+/*
+ * net
+ */
+void dhgenpg(ulong*, ulong*);
+ulong dhgenkey(ulong, ulong, ulong);
+NetConn *newnetconn(NCState, Udphdr*);
+void delnetconn(NetConn*);
+Frame *newframe(Frame*, u8int, u32int, u32int, u16int, uchar*);
+void delframe(Frame*);
