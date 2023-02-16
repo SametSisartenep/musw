@@ -58,6 +58,32 @@ popconn(NetConn *nc)
 }
 
 void
+nudgeconns(ulong curts)
+{
+	NetConn **ncp, **ncpe;
+	Frame *f;
+	ulong elapsed, elapsednudge;
+
+	ncpe = conns+nconns;
+
+	for(ncp = conns; ncp < ncpe; ncp++){
+		elapsed = curts - (*ncp)->lastrecvts;
+		elapsednudge = curts - (*ncp)->lastnudgets;
+
+		if((*ncp)->state == NCSConnected && elapsed > ConnTimeout){
+			popconn(*ncp);
+			delnetconn(*ncp);
+		}else if((*ncp)->state == NCSConnected && elapsednudge > 1000){ /* every second */
+			f = newframe(&(*ncp)->udp, NSnudge, 0, 0, 0, nil);
+			signframe(f, (*ncp)->dh.priv);
+			sendp(egress, f);
+
+			(*ncp)->lastnudgets = curts;
+		}
+	}
+}
+
+void
 threadnetrecv(void *arg)
 {
 	uchar buf[MTU];
@@ -105,7 +131,7 @@ threadnetppu(void *)
 				nc = newnetconn(NCSConnecting, &frame->udp);
 				putconn(nc);
 
-				newf = newframe(frame, NShi, 0, 0, 2*sizeof(ulong), nil);
+				newf = newframe(&frame->udp, NShi, frame->seq+1, frame->seq, 2*sizeof(ulong), nil);
 
 				dhgenpg(&nc->dh.p, &nc->dh.g);
 				pack(newf->data, newf->len, "kk", nc->dh.p, nc->dh.g);
@@ -117,6 +143,8 @@ threadnetppu(void *)
 				goto discard;
 		}
 
+		nc->lastrecvts = nanosec()/1e6;
+
 		switch(nc->state){
 		case NCSConnecting:
 			switch(frame->type){
@@ -127,7 +155,7 @@ threadnetppu(void *)
 				if(debug)
 					fprint(2, "\trcvd pubkey %ld\n", nc->dh.pub);
 
-				newf = newframe(frame, NSdhx, 0, 0, sizeof(ulong), nil);
+				newf = newframe(&frame->udp, NSdhx, frame->seq+1, frame->seq, sizeof(ulong), nil);
 
 				nc->dh.sec = truerand();
 				nc->dh.priv = dhgenkey(nc->dh.pub, nc->dh.sec, nc->dh.p);
@@ -141,7 +169,7 @@ threadnetppu(void *)
 			}
 			break;
 		case NCSConnected:
-			if(verifyframe(frame, nc->dh.priv) != 0){
+			if(!verifyframe(frame, nc->dh.priv)){
 				if(debug)
 					fprint(2, "\tbad signature\n");
 				goto discard;
@@ -250,6 +278,7 @@ threadsim(void *)
 		}
 
 		broadcaststate();
+		nudgeconns(now/1e6);
 
 		iosleep(io, HZ2MS(70));
 	}

@@ -66,23 +66,18 @@ delnetconn(NetConn *nc)
 /* Frame */
 
 Frame *
-newframe(Frame *pf, u8int type, u32int seq, u32int ack, u16int len, uchar *data)
+newframe(Udphdr *hdr, u8int type, u32int seq, u32int ack, u16int len, uchar *data)
 {
 	Frame *f;
 
 	f = emalloc(sizeof(Frame)+len);
 	memset(f, 0, sizeof(Frame));
+	if(hdr != nil)
+		memmove(&f->udp, hdr, Udphdrsize);
 	f->id = ProtocolID;
 	f->type = type;
-	if(pf != nil){
-		memmove(&f->udp, &pf->udp, Udphdrsize);
-		f->seq = pf->seq+1;
-		f->ack = pf->seq;
-	}else{
-		memset(&f->udp, 0, Udphdrsize);
-		f->seq = seq;
-		f->ack = ack;
-	}
+	f->seq = seq;
+	f->ack = ack;
 	f->len = len;
 	if(data != nil)
 		memmove(f->data, data, f->len);
@@ -120,8 +115,7 @@ verifyframe(Frame *f, ulong key)
 	memset(f->sig, 0, MD5dlen);
 	n = pack(msg, sizeof msg, "f", f);
 	hmac_md5(msg, n, k, sizeof k, h1, nil);
-	memmove(f->sig, h0, MD5dlen);
-	return memcmp(h0, h1, MD5dlen);
+	return memcmp(h0, h1, MD5dlen) == 0;
 }
 
 void

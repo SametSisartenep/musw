@@ -268,7 +268,7 @@ threadnetppu(void *)
 			case NShi:
 				unpack(frame->data, frame->len, "kk", &netconn.dh.p, &netconn.dh.g);
 
-				newf = newframe(frame, NCdhx, 0, 0, sizeof(ulong), nil);
+				newf = newframe(nil, NCdhx, frame->seq+1, frame->seq, sizeof(ulong), nil);
 
 				netconn.dh.sec = truerand();
 				pack(newf->data, newf->len, "k", dhgenkey(netconn.dh.g, netconn.dh.sec, netconn.dh.p));
@@ -290,7 +290,7 @@ threadnetppu(void *)
 			}
 			break;
 		case NCSConnected:
-			if(verifyframe(frame, netconn.dh.priv) != 0){
+			if(!verifyframe(frame, netconn.dh.priv)){
 				if(debug)
 					fprint(2, "\tbad signature\n");
 				goto discard;
@@ -304,7 +304,7 @@ threadnetppu(void *)
 					&universe->star.p);
 				break;
 			case NSnudge:
-				newf = newframe(frame, NCnudge, 0, 0, 0, nil);
+				newf = newframe(nil, NCnudge, frame->seq+1, frame->seq, 0, nil);
 				signframe(newf, netconn.dh.priv);
 
 				sendp(egress, newf);

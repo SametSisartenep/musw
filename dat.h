@@ -47,7 +47,8 @@ enum {
 enum {
 	ProtocolID	= 0x5753554d,	/* MUSW */
 	Framehdrsize	= 4+1+4+4+2+MD5dlen,
-	MTU		= 1024
+	MTU		= 1024,
+	ConnTimeout	= 10000		/* in ms */
 };
 
 typedef struct VModel VModel;
@@ -163,12 +164,14 @@ struct NetConn
 	NCState state;
 	u32int lastseq;
 	u32int lastack;
+	ulong lastrecvts;	/* last time a packet was received (in ms) */
+	ulong lastnudgets;	/* last time a nudge was sent (in ms) */
 };
 
 struct Player
 {
 	char *name;
-	NetConn conn;
+	NetConn *conn;
 	ulong okdown, kdown;
 };
 
