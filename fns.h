@@ -26,10 +26,13 @@ int unpack(uchar*, int, char*, ...);
 /*
  * party
  */
-Party *newparty(Party*, Player[2]);
+Party *newparty(Party*, Player*, Player*);
 void delparty(Party*);
 void addparty(Party*, Party*);
 void initparty(Party*);
+Player *newplayer(char*, NetConn*);
+void delplayer(Player*);
+void initplayerq(Playerq*);
 
 /*
  * universe

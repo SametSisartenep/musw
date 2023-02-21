@@ -22,7 +22,7 @@ dhgenpg(ulong *p, ulong *g)
 }
 
 /*
- * x = g^k mod p
+ * y = g^k mod p
  */
 ulong
 dhgenkey(ulong g, ulong k, ulong p)

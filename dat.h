@@ -64,6 +64,7 @@ typedef struct Frame Frame;
 typedef struct DHparams DHparams;
 typedef struct NetConn NetConn;
 typedef struct Player Player;
+typedef struct Playerq Playerq;
 typedef struct Party Party;
 
 /*
@@ -98,7 +99,7 @@ struct Particle
 {
 	Point2 p, v;
 	double θ, ω;
-	double mass; /* kg */
+	double mass; /* in kg */
 };
 
 struct Bullet
@@ -172,12 +173,23 @@ struct Player
 {
 	char *name;
 	NetConn *conn;
-	ulong okdown, kdown;
+	ulong oldkdown, kdown;
+	Player *next;
+};
+
+struct Playerq
+{
+	Player *head, *tail;
+	usize len;
+
+	void (*put)(Playerq*, Player*);
+	Player *(*get)(Playerq*);
+	void (*del)(Playerq*, Player*);
 };
 
 struct Party
 {
-	Player players[2];	/* the needle and the wedge */
+	Player *players[2];	/* the needle and the wedge */
 	Universe *u;
 	Party *prev, *next;
 };

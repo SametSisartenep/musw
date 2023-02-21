@@ -151,7 +151,7 @@ initconn(void)
 {
 	Frame *frame;
 
-	frame = newframe(nil, NChi, 0, 0, 0, nil);
+	frame = newframe(nil, NChi, ntruerand(1000), 0, 0, nil);
 	sendp(egress, frame);
 	netconn.state = NCSConnecting;
 }
@@ -164,7 +164,7 @@ sendkeys(ulong kdown)
 	if(netconn.state != NCSConnected)
 		return;
 
-	frame = newframe(nil, NCinput, 0, 0, sizeof(kdown), nil);
+	frame = newframe(nil, NCinput, netconn.lastseq+1, 0, sizeof(kdown), nil);
 	pack(frame->data, frame->len, "k", kdown);
 	signframe(frame, netconn.dh.priv);
 	sendp(egress, frame);
@@ -264,6 +264,10 @@ threadnetppu(void *)
 
 		switch(netconn.state){
 		case NCSConnecting:
+			if(frame->seq != netconn.lastseq + 1 &&
+			   frame->ack != netconn.lastseq)
+				goto discard;
+
 			switch(frame->type){
 			case NShi:
 				unpack(frame->data, frame->len, "kk", &netconn.dh.p, &netconn.dh.g);
@@ -316,6 +320,9 @@ threadnetppu(void *)
 			}
 			break;
 		}
+
+		netconn.lastseq = frame->seq;
+		netconn.lastack = frame->ack;
 discard:
 		delframe(frame);
 	}
@@ -345,7 +352,10 @@ threadnetsend(void *arg)
 				frame->udp.laddr, lport, frame->udp.raddr, rport, frame);
 		}
 
-		free(frame);
+		netconn.lastseq = frame->seq;
+		netconn.lastack = frame->ack;
+
+		delframe(frame);
 	}
 }
 
@@ -383,6 +393,14 @@ darkness:
 		skymap = display->black;
 	}
 	close(fd);
+}
+
+void
+drawconnecting(void)
+{
+	draw(screen, screen->r, display->black, nil, ZP);
+	string(screen, addpt(screen->r.min, Pt(100,300)), display->white, ZP, font, "connecting...");
+	flushimage(display, 1);
 }
 
 void
@@ -472,10 +490,10 @@ threadmain(int argc, char *argv[])
 	screenrf.bx = Vec2(1, 0);
 	screenrf.by = Vec2(0,-1);
 
-	proccreate(kbdproc, nil, 4096);
+	proccreate(kbdproc, nil, mainstacksize);
 
-	/* TODO: draw a CONNECTING... sign */
-	/* TODO: set up an alarm for n secs and update the sign */
+	/* TODO: implement this properly with screens and iodial(2) */
+	drawconnecting();
 	fd = dial(server, nil, nil, nil);
 	if(fd < 0)
 		sysfatal("dial: %r");

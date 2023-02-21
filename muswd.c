@@ -13,6 +13,7 @@ int debug;
 int mainstacksize = 24*1024;
 
 Party theparty;
+Playerq players;
 NetConn **conns;
 usize nconns;
 usize maxconns;
@@ -41,6 +42,28 @@ getconn(Frame *f)
 	return nil;
 }
 
+/* TODO: this is an ugly hack. nc should probably reference the player back */
+void
+dissolveparty(NetConn *nc)
+{
+	int i;
+	Party *p;
+	Player *player;
+
+	for(p = theparty.next; p != &theparty; p = p->next)
+		for(i = 0; i < nelem(p->players); i++)
+			if(p->players[i]->conn == nc){
+				delplayer(p->players[i]);
+				players.put(&players, p->players[i^1]);
+				delparty(p);
+			}
+
+	/* also clean the player queue */
+	for(player = players.head; player != nil; player = player->next)
+		if(player->conn == nc)
+			players.del(&players, player);
+}
+
 int
 popconn(NetConn *nc)
 {
@@ -52,6 +75,8 @@ popconn(NetConn *nc)
 		if(*ncp == nc){
 			memmove(ncp, ncp+1, sizeof(NetConn*)*(ncpe-ncp-1));
 			nconns--;
+			dissolveparty(nc); /* TODO: ugly hack. */
+			delnetconn(nc);
 			return 0;
 		}
 	return -1;
@@ -70,11 +95,10 @@ nudgeconns(ulong curts)
 		elapsed = curts - (*ncp)->lastrecvts;
 		elapsednudge = curts - (*ncp)->lastnudgets;
 
-		if((*ncp)->state == NCSConnected && elapsed > ConnTimeout){
+		if((*ncp)->state == NCSConnected && elapsed > ConnTimeout)
 			popconn(*ncp);
-			delnetconn(*ncp);
-		}else if((*ncp)->state == NCSConnected && elapsednudge > 1000){ /* every second */
-			f = newframe(&(*ncp)->udp, NSnudge, 0, 0, 0, nil);
+		else if((*ncp)->state == NCSConnected && elapsednudge > 1000){ /* every second */
+			f = newframe(&(*ncp)->udp, NSnudge, (*ncp)->lastseq+1, 0, 0, nil);
 			signframe(f, (*ncp)->dh.priv);
 			sendp(egress, f);
 
@@ -143,14 +167,18 @@ threadnetppu(void *)
 				goto discard;
 		}
 
-		nc->lastrecvts = nanosec()/1e6;
-
 		switch(nc->state){
 		case NCSConnecting:
+			if(frame->seq != nc->lastseq + 1 &&
+			   frame->ack != nc->lastseq)
+				goto discard;
+
 			switch(frame->type){
 			case NCdhx:
 				unpack(frame->data, frame->len, "k", &nc->dh.pub);
 				nc->state = NCSConnected;
+
+				players.put(&players, newplayer(nil, nc));
 
 				if(debug)
 					fprint(2, "\trcvd pubkey %ld\n", nc->dh.pub);
@@ -185,11 +213,14 @@ threadnetppu(void *)
 				break;
 			case NCbuhbye:
 				popconn(nc);
-				delnetconn(nc);
 				break;
 			}
 			break;
 		}
+
+		nc->lastrecvts = nanosec()/1e6;
+		nc->lastseq = frame->seq;
+		nc->lastack = frame->ack;
 discard:
 		delframe(frame);
 	}
@@ -202,6 +233,7 @@ threadnetsend(void *arg)
 	int fd, n;
 	ushort rport, lport;
 	Frame *frame;
+	NetConn *nc;
 
 	threadsetname("threadnetsend");
 
@@ -219,7 +251,13 @@ threadnetsend(void *arg)
 				frame->udp.laddr, lport, frame->udp.raddr, rport, frame);
 		}
 
-		free(frame);
+		nc = getconn(frame);
+		if(nc != nil){
+			nc->lastseq = frame->seq;
+			nc->lastack = frame->ack;
+		}
+
+		delframe(frame);
 	}
 }
 
@@ -228,19 +266,22 @@ broadcaststate(void)
 {
 	int i;
 	Frame *frame;
-//	Player *player;
+	NetConn *pnc;
 	Party *p;
 
-	for(p = theparty.next; p != &theparty; p = p->next){
-		frame = emalloc(sizeof(Frame)+2*(3*8+8)+3*8);
-		pack(frame->data, frame->len, "PdPdP",
-			p->u->ships[0].p, p->u->ships[0].θ,
-			p->u->ships[1].p, p->u->ships[1].θ,
-			p->u->star.p);
-
+	for(p = theparty.next; p != &theparty; p = p->next)
 		for(i = 0; i < nelem(p->players); i++){
+			pnc = p->players[i]->conn;
+
+			frame = newframe(&pnc->udp, NSsimstate, pnc->lastseq+1, 0, 2*(3*8+8)+3*8, nil);
+			pack(frame->data, frame->len, "PdPdP",
+				p->u->ships[0].p, p->u->ships[0].θ,
+				p->u->ships[1].p, p->u->ships[1].θ,
+				p->u->star.p);
+			signframe(frame, pnc->dh.priv);
+
+			sendp(egress, frame);
 		}
-	}
 
 }
 
@@ -250,7 +291,6 @@ threadsim(void *)
 	uvlong then, now;
 	double frametime, Δt;
 	Ioproc *io;
-//	Player couple[2];
 	Party *p;
 
 	Δt = 0.01;
@@ -258,10 +298,8 @@ threadsim(void *)
 	io = ioproc();
 
 	for(;;){
-//		if(lobby->getcouple(lobby, couple) != -1){
-//			newparty(&theparty, couple);
-//			theparty.prev->u->reset(theparty.prev->u);
-//		}
+		if(players.len >= 2)
+			newparty(&theparty, players.get(&players), players.get(&players));
 
 		now = nanosec();
 		frametime = now - then;
@@ -295,8 +333,9 @@ fprintstats(int fd)
 
 	fprint(fd, "curconns	%lld\n"
 		   "maxconns	%lld\n"
+		   "nplayers	%lld\n"
 		   "nparties	%lld\n",
-		nconns, maxconns, nparties);
+		nconns, maxconns, players.len, nparties);
 }
 
 void
@@ -316,7 +355,13 @@ fprintstates(int fd)
 }
 
 
-/* Command & Control */
+/*
+ * Command & Control
+ *
+ *	- show stats: prints some server stats
+ *	- show states: prints the state of running simulations
+ *	- debug [on|off]: toggles debug mode
+ */
 void
 threadC2(void *)
 {
@@ -348,6 +393,11 @@ threadC2(void *)
 					fprintstats(pfd[1]);
 				else if(strcmp(cmdargs[1], "states") == 0)
 					fprintstates(pfd[1]);
+			}else if(strcmp(cmdargs[0], "debug") == 0){
+				if(strcmp(cmdargs[1], "on") == 0)
+					debug = 1;
+				else if(strcmp(cmdargs[1], "off") == 0)
+					debug = 0;
 			}
 		}
 	}
@@ -401,6 +451,7 @@ threadmain(int argc, char *argv[])
 		fprint(2, "listening on %s\n", addr);
 
 	initparty(&theparty);
+	initplayerq(&players);
 
 	ingress = chancreate(sizeof(Frame*), 32);
 	egress = chancreate(sizeof(Frame*), 32);
