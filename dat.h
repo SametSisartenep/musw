@@ -51,6 +51,10 @@ enum {
 	ConnTimeout	= 10000		/* in ms */
 };
 
+enum {
+	THRUST = 100
+};
+
 typedef struct VModel VModel;
 typedef struct Sprite Sprite;
 typedef struct Particle Particle;
@@ -117,6 +121,11 @@ struct Ship
 	Bullet rounds[10];
 	VModel *mdl;
 	Matrix mdlxform;
+
+	void (*forward)(Ship*, double);
+	void (*rotate)(Ship*, int, double);
+	void (*hyperjump)(Ship*);
+	void (*fire)(Ship*);
 };
 
 struct Star
@@ -167,6 +176,7 @@ struct NetConn
 	u32int lastack;
 	ulong lastrecvts;	/* last time a packet was received (in ms) */
 	ulong lastnudgets;	/* last time a nudge was sent (in ms) */
+	Player *player;
 };
 
 struct Player

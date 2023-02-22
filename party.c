@@ -113,7 +113,7 @@ playerq_del(Playerq *pq, Player *p)
 	Player *np;
 
 	if(pq->head == p){
-		pq->pop(pq);
+		pq->get(pq);
 		return;
 	}
 

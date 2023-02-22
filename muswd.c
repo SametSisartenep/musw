@@ -42,26 +42,29 @@ getconn(Frame *f)
 	return nil;
 }
 
-/* TODO: this is an ugly hack. nc should probably reference the player back */
 void
-dissolveparty(NetConn *nc)
+dissolveparty(Player *player)
 {
 	int i;
 	Party *p;
-	Player *player;
 
+	/*
+	 * kick the player and put their adversary back in the
+	 * queue, then dissolve the party
+	 */
 	for(p = theparty.next; p != &theparty; p = p->next)
 		for(i = 0; i < nelem(p->players); i++)
-			if(p->players[i]->conn == nc){
+			if(p->players[i] == player){
 				delplayer(p->players[i]);
 				players.put(&players, p->players[i^1]);
 				delparty(p);
 			}
 
-	/* also clean the player queue */
-	for(player = players.head; player != nil; player = player->next)
-		if(player->conn == nc)
-			players.del(&players, player);
+	/*
+	 * also clean the player queue
+	 * TODO: has nothing to do with the party
+	 */
+	players.del(&players, player);
 }
 
 int
@@ -75,7 +78,7 @@ popconn(NetConn *nc)
 		if(*ncp == nc){
 			memmove(ncp, ncp+1, sizeof(NetConn*)*(ncpe-ncp-1));
 			nconns--;
-			dissolveparty(nc); /* TODO: ugly hack. */
+			dissolveparty(nc->player);
 			delnetconn(nc);
 			return 0;
 		}
@@ -179,6 +182,7 @@ threadnetppu(void *)
 				nc->state = NCSConnected;
 
 				players.put(&players, newplayer(nil, nc));
+				nc->player = players.tail;
 
 				if(debug)
 					fprint(2, "\trcvd pubkey %ld\n", nc->dh.pub);
@@ -209,6 +213,9 @@ threadnetppu(void *)
 
 				if(debug)
 					fprint(2, "\t%.*lub\n", sizeof(kdown)*8, kdown);
+
+				nc->player->oldkdown = nc->player->kdown;
+				nc->player->kdown = kdown;
 
 				break;
 			case NCbuhbye:
@@ -288,10 +295,13 @@ broadcaststate(void)
 void
 threadsim(void *)
 {
+	int i;
 	uvlong then, now;
 	double frametime, Δt;
 	Ioproc *io;
 	Party *p;
+	Player *player;
+	Ship *ship;
 
 	Δt = 0.01;
 	then = nanosec();
@@ -305,14 +315,32 @@ threadsim(void *)
 		frametime = now - then;
 		then = now;
 
+partywalk:
 		for(p = theparty.next; p != &theparty; p = p->next){
 			p->u->timeacc += frametime/1e9;
 
-			while(p->u->timeacc >= Δt){
-				p->u->step(p->u, Δt);
-				p->u->timeacc -= Δt;
-				p->u->t += Δt;
+			for(i = 0; i < nelem(p->players); i++){
+				player = p->players[i];
+				ship = &p->u->ships[i];
+
+				if((player->kdown & 1<<Kquit) != 0){
+					popconn(player->conn);
+					goto partywalk;
+				}
+				if((player->kdown & 1<<K↑) != 0)
+					ship->forward(ship, Δt);
+				if((player->kdown & 1<<K↺) != 0)
+					ship->rotate(ship, 1, Δt);
+				if((player->kdown & 1<<K↻) != 0)
+					ship->rotate(ship, -1, Δt);
+				if((player->kdown & 1<<Khyper) != 0)
+					ship->hyperjump(ship);
+				if((player->kdown & 1<<Kfire) != 0)
+					ship->fire(ship);
 			}
+
+			while(p->u->timeacc >= Δt)
+				p->u->step(p->u, Δt);
 		}
 
 		broadcaststate();
