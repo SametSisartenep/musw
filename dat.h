@@ -52,7 +52,7 @@ enum {
 };
 
 enum {
-	THRUST = 100
+	THRUST = 10
 };
 
 typedef struct VModel VModel;

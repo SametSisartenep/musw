@@ -48,7 +48,7 @@ ship_fire(Ship *s)
 		0, 0, 1,
 	};
 
-	bv = mulpt2(xform(Vec2(1,0), R), THRUST);
+	bv = mulpt2(xform(Vec2(1,0), R), 10*THRUST);
 
 	for(i = 0; i < nelem(s->rounds); i++)
 		if(!s->rounds[i].fired){

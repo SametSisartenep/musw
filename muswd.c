@@ -214,7 +214,6 @@ threadnetppu(void *)
 				if(debug)
 					fprint(2, "\t%.*lub\n", sizeof(kdown)*8, kdown);
 
-				nc->player->oldkdown = nc->player->kdown;
 				nc->player->kdown = kdown;
 
 				break;
@@ -318,12 +317,12 @@ threadsim(void *)
 	io = ioproc();
 
 	for(;;){
-		if(players.len >= 2)
-			newparty(&theparty, players.get(&players), players.get(&players));
-
 		now = nanosec();
 		frametime = now - then;
 		then = now;
+
+		if(players.len >= 2)
+			newparty(&theparty, players.get(&players), players.get(&players));
 
 partywalk:
 		for(p = theparty.next; p != &theparty; p = p->next){
@@ -345,8 +344,11 @@ partywalk:
 					ship->rotate(ship, -1, Δt);
 				if((player->kdown & 1<<Khyper) != 0)
 					ship->hyperjump(ship);
-				if((player->kdown & 1<<Kfire) != 0)
+				if(player->oldkdown != player->kdown &&
+				   (player->kdown & 1<<Kfire) != 0)
 					ship->fire(ship);
+
+				player->oldkdown = player->kdown;
 			}
 
 			while(p->u->timeacc >= Δt)
