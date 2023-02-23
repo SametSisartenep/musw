@@ -271,7 +271,8 @@ threadnetsend(void *arg)
 void
 broadcaststate(void)
 {
-	int i;
+	int i, j, k;
+	uchar *bufp;
 	Frame *frame;
 	NetConn *pnc;
 	Party *p;
@@ -280,11 +281,20 @@ broadcaststate(void)
 		for(i = 0; i < nelem(p->players); i++){
 			pnc = p->players[i]->conn;
 
-			frame = newframe(&pnc->udp, NSsimstate, pnc->lastseq+1, 0, 2*(3*8+8)+3*8, nil);
-			pack(frame->data, frame->len, "PdPdP",
+			frame = newframe(&pnc->udp, NSsimstate, pnc->lastseq+1, 0, 2*(3*8+8)+3*8+20*(3*8+8), nil);
+
+			bufp = frame->data;
+			bufp += pack(bufp, frame->len, "PdPdP",
 				p->u->ships[0].p, p->u->ships[0].θ,
 				p->u->ships[1].p, p->u->ships[1].θ,
 				p->u->star.p);
+
+			/* TODO: only send the fired ones */
+			for(j = 0; j < nelem(p->u->ships); j++)
+				for(k = 0; k < nelem(p->u->ships[j].rounds); k++)
+					bufp += pack(bufp, frame->len - (bufp-frame->data), "Pd",
+						p->u->ships[j].rounds[k].p, p->u->ships[j].rounds[k].θ);
+
 			signframe(frame, pnc->dh.priv);
 
 			sendp(egress, frame);
@@ -488,5 +498,5 @@ threadmain(int argc, char *argv[])
 	threadcreate(threadnetppu, nil, mainstacksize);
 	threadcreate(threadnetsend, &adfd, mainstacksize);
 	threadcreate(threadsim, nil, mainstacksize);
-	threadexits(nil);
+	yield();
 }

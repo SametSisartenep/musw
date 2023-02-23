@@ -111,6 +111,28 @@ readvmodel(char *file)
 }
 
 void
+drawbullets(Ship *ship, Image *dst)
+{
+	int i;
+	Bullet *b;
+	Point2 v;
+
+	for(i = 0; i < nelem(ship->rounds); i++){
+		b = &ship->rounds[i];
+		v = Vec2(-1,0); /* it's pointing backwards to paint the tail */
+		Matrix R = {
+			cos(b->θ), -sin(b->θ), 0,
+			sin(b->θ),  cos(b->θ), 0,
+			0, 0, 1,
+		};
+
+		v = xform(v, R);
+		line(dst, toscreen(b->p), toscreen(addpt2(b->p, mulpt2(v, 10))), 0, 0, 0, display->white, ZP);
+		fillellipse(dst, toscreen(b->p), 1, 1, display->white, ZP);
+	}
+}
+
+void
 drawship(Ship *ship, Image *dst)
 {
 	int i;
@@ -144,6 +166,8 @@ drawship(Ship *ship, Image *dst)
 			p += 3;
 			break;
 		}
+
+	drawbullets(ship, dst);
 }
 
 void
@@ -254,6 +278,8 @@ threadnetrecv(void *arg)
 void
 threadnetppu(void *)
 {
+	int i, j;
+	uchar *bufp;
 	Frame *frame, *newf;
 
 	threadsetname("threadnetppu");
@@ -302,10 +328,17 @@ threadnetppu(void *)
 
 			switch(frame->type){
 			case NSsimstate:
-				unpack(frame->data, frame->len, "PdPdP",
+				bufp = frame->data;
+				bufp += unpack(bufp, frame->len, "PdPdP",
 					&universe->ships[0].p, &universe->ships[0].θ,
 					&universe->ships[1].p, &universe->ships[1].θ,
 					&universe->star.p);
+
+					/* TODO: only recv the fired ones */
+					for(i = 0; i < nelem(universe->ships); i++)
+						for(j = 0; j < nelem(universe->ships[i].rounds); j++)
+							bufp += unpack(bufp, frame->len - (bufp-frame->data), "Pd",
+								&universe->ships[i].rounds[j].p, &universe->ships[i].rounds[j].θ);
 				break;
 			case NSnudge:
 				newf = newframe(nil, NCnudge, frame->seq+1, frame->seq, 0, nil);
@@ -398,9 +431,26 @@ darkness:
 void
 drawconnecting(void)
 {
-	draw(screen, screen->r, display->black, nil, ZP);
-	string(screen, addpt(screen->r.min, Pt(100,300)), display->white, ZP, font, "connecting...");
-	flushimage(display, 1);
+	static double t0;
+	static Point p = {100,300};
+	Point np;
+	int i;
+
+	if(t0 == 0)
+		t0 = nanosec();
+
+	if(nanosec()-t0 >= 5e9){ /* every five seconds */
+		p = Pt(ntruerand(SCRW-2*100)+100,ntruerand(SCRH-100)+100);
+		t0 = nanosec();
+	}
+
+	draw(screen, screen->r, skymap, nil, ZP);
+	np = string(screen, addpt(screen->r.min, p), display->white, ZP, font, "connecting");
+
+	for(i = 1; i < 3+1; i++){
+		if(nanosec()-t0 > i*1e9)
+			np = string(screen, np, display->white, ZP, font, ".");
+	}
 }
 
 void
@@ -410,9 +460,14 @@ redraw(void)
 
 	draw(screen, screen->r, skymap, nil, ZP);
 
-	drawship(&universe->ships[0], screen);
-	drawship(&universe->ships[1], screen);
-	universe->star.spr->draw(universe->star.spr, screen, subpt(toscreen(universe->star.p), Pt(16,16)));
+	if(netconn.state == NCSConnecting)
+		drawconnecting();
+
+	if(netconn.state == NCSConnected){
+		drawship(&universe->ships[0], screen);
+		drawship(&universe->ships[1], screen);
+		universe->star.spr->draw(universe->star.spr, screen, subpt(toscreen(universe->star.p), Pt(16,16)));
+	}
 
 	flushimage(display, 1);
 	unlockdisplay(display);
@@ -494,6 +549,7 @@ threadmain(int argc, char *argv[])
 
 	/* TODO: implement this properly with screens and iodial(2) */
 	drawconnecting();
+	flushimage(display, 1);
 	fd = dial(server, nil, nil, nil);
 	if(fd < 0)
 		sysfatal("dial: %r");
