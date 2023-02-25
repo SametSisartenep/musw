@@ -1,0 +1,15 @@
+[ ] collision detection
+[ ] toroidal warping
+[ ] respect bullets's ttl
+	[ ] communicate this event with the clients
+	[ ] explode when the time comes
+[ ] fuel consumption
+[ ] hyperjump
+	[ ] minskytron effect
+	[ ] engine damage on every jump
+[ ] different screens for each game state
+	[ ] intro
+	[ ] connecting to server
+	[ ] waiting for a player
+	[ ] main game
+[ ] reduce the amount of data sent on every NSsimstate packet
