@@ -1,0 +1,13 @@
+# The Wedge vector model
+v  10  0
+v   8 -4
+v   8 -4
+v -10 -6
+v -10 -6
+v -12  0
+v -10  6
+v -10  6
+v   8  4
+v   8  4
+v  10  0
+llcll
