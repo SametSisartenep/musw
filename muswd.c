@@ -342,7 +342,8 @@ partywalk:
 					ship->rotate(ship, 1, Δt);
 				if((player->kdown & 1<<K↻) != 0)
 					ship->rotate(ship, -1, Δt);
-				if((player->kdown & 1<<Khyper) != 0)
+				if(player->oldkdown != player->kdown &&
+				   (player->kdown & 1<<Khyper) != 0)
 					ship->hyperjump(ship);
 				if(player->oldkdown != player->kdown &&
 				   (player->kdown & 1<<Kfire) != 0)

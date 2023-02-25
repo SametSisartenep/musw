@@ -19,7 +19,6 @@ accelship(Universe *u, Particle *p, double)
 {
 	double g, d;
 
-	/* TODO: take thrust into account, based on user input. */
 	d = vec2len(subpt2(u->star.p, p->p));
 	d *= 1e5; /* scale to the 100km/px range */
 	g = G*u->star.mass/(d*d);

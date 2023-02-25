@@ -32,13 +32,13 @@ erealloc(void *p, ulong n)
 	return np;
 }
 
-//Image*
-//eallocimage(Display *d, Rectangle r, ulong chan, int repl, ulong col)
-//{
-//	Image *i;
-//
-//	i = allocimage(d, r, chan, repl, col);
-//	if(i == nil)
-//		sysfatal("allocimage: %r");
-//	return i;
-//}
+Image*
+eallocimage(Display *d, Rectangle r, ulong chan, int repl, ulong col)
+{
+	Image *i;
+
+	i = allocimage(d, r, chan, repl, col);
+	if(i == nil)
+		sysfatal("allocimage: %r");
+	return i;
+}

@@ -36,11 +36,13 @@ ulong kdown;
 RFrame screenrf;
 Universe *universe;
 VModel *needlemdl, *wedgemdl;
+Image *screenb;
 Image *skymap;
 Channel *ingress;
 Channel *egress;
 NetConn netconn;
 char winspec[32];
+int doghosting;
 int debug;
 
 
@@ -108,6 +110,46 @@ readvmodel(char *file)
 	Bterm(bin);
 
 	return mdl;
+}
+
+int
+blendimages(Image *i0, Image *i1, double f)
+{
+	static uchar *buf0, *buf1;
+	static char c0[10], c1[10];
+	static ulong n;
+	uchar *s0, *s1;
+
+	assert(i0->depth == i1->depth);
+	assert(Dx(i0->r) == Dx(i1->r) && Dy(i0->r) == Dy(i1->r));
+
+	f = fclamp(f, 0, 1);
+	if(buf0 == nil && buf1 == nil){
+		n = bytesperline(i0->r, i0->depth)*Dy(i0->r);
+		buf0 = emalloc(n);
+		buf1 = emalloc(n);
+
+		/* i1 won't ever change */
+		if(unloadimage(i1, i1->r, buf1, n) != n)
+			sysfatal("unloadimage: %r");
+
+		if(debug){
+			chantostr(c0, i0->chan);
+			chantostr(c1, i1->chan);
+			fprint(2, "i0 %s\ti1 %s\n", c0, c1);
+		}
+	}
+
+	if(unloadimage(i0, i0->r, buf0, n) != n)
+		sysfatal("unloadimage: %r");
+
+	for(s0 = buf0, s1 = buf1; s0 < buf0+n; s0++, s1++)
+		*s0 = flerp(*s0, *s1, f);
+
+	if(loadimage(i0, i0->r, buf0, n) != n)
+		sysfatal("loadimage: %r");
+
+	return 0;
 }
 
 void
@@ -444,12 +486,11 @@ drawconnecting(void)
 		t0 = nanosec();
 	}
 
-	draw(screen, screen->r, skymap, nil, ZP);
-	np = string(screen, addpt(screen->r.min, p), display->white, ZP, font, "connecting");
+	np = string(screenb, addpt(screenb->r.min, p), display->white, ZP, font, "connecting");
 
 	for(i = 1; i < 3+1; i++){
 		if(nanosec()-t0 > i*1e9)
-			np = string(screen, np, display->white, ZP, font, ".");
+			np = string(screenb, np, display->white, ZP, font, ".");
 	}
 }
 
@@ -458,16 +499,21 @@ redraw(void)
 {
 	lockdisplay(display);
 
-	draw(screen, screen->r, skymap, nil, ZP);
+	if(doghosting)
+		blendimages(screenb, skymap, 0.05);
+	else
+		draw(screenb, screenb->r, skymap, nil, ZP);
 
 	if(netconn.state == NCSConnecting)
 		drawconnecting();
 
 	if(netconn.state == NCSConnected){
-		drawship(&universe->ships[0], screen);
-		drawship(&universe->ships[1], screen);
-		universe->star.spr->draw(universe->star.spr, screen, subpt(toscreen(universe->star.p), Pt(16,16)));
+		drawship(&universe->ships[0], screenb);
+		drawship(&universe->ships[1], screenb);
+		universe->star.spr->draw(universe->star.spr, screenb, subpt(toscreen(universe->star.p), Pt(16,16)));
 	}
+
+	draw(screen, screen->r, screenb, nil, ZP);
 
 	flushimage(display, 1);
 	unlockdisplay(display);
@@ -486,7 +532,7 @@ resize(void)
 		sysfatal("resize failed");
 	unlockdisplay(display);
 
-	screenrf.p = Pt2(screen->r.min.x+Dx(screen->r)/2,screen->r.max.y-Dy(screen->r)/2,1);
+//	screenrf.p = Pt2(screen->r.min.x+Dx(screen->r)/2,screen->r.max.y-Dy(screen->r)/2,1);
 
 	/* ignore move events */
 	if(Dx(screen->r) != SCRW || Dy(screen->r) != SCRH){
@@ -503,7 +549,7 @@ resize(void)
 void
 usage(void)
 {
-	fprint(2, "usage: %s [-d] server\n", argv0);
+	fprint(2, "usage: %s [-dg] server\n", argv0);
 	threadexitsall("usage");
 }
 
@@ -524,6 +570,9 @@ threadmain(int argc, char *argv[])
 	case 'd':
 		debug++;
 		break;
+	case 'g':
+		doghosting++;
+		break;
 	default:
 		usage();
 	}ARGEND;
@@ -541,15 +590,17 @@ threadmain(int argc, char *argv[])
 	display->locking = 1;
 	unlockdisplay(display);
 
-	screenrf.p = Pt2(screen->r.min.x+Dx(screen->r)/2,screen->r.max.y-Dy(screen->r)/2,1);
+	initskymap();
+	screenb = eallocimage(display, rectsubpt(screen->r, screen->r.min), RGBA32, 0, DNofill);
+	draw(screenb, screenb->r, skymap, nil, ZP);
+
+	screenrf.p = Pt2(Dx(screenb->r)/2,Dy(screenb->r)/2,1);
 	screenrf.bx = Vec2(1, 0);
 	screenrf.by = Vec2(0,-1);
 
 	proccreate(kbdproc, nil, mainstacksize);
 
 	/* TODO: implement this properly with screens and iodial(2) */
-	drawconnecting();
-	flushimage(display, 1);
 	fd = dial(server, nil, nil, nil);
 	if(fd < 0)
 		sysfatal("dial: %r");
@@ -564,8 +615,6 @@ threadmain(int argc, char *argv[])
 	universe->ships[0].mdl = needlemdl;
 	universe->ships[1].mdl = wedgemdl;
 	universe->star.spr = readsprite("assets/spr/earth.pic", ZP, Rect(0,0,32,32), 5, 20e3);
-
-	initskymap();
 
 	ingress = chancreate(sizeof(Frame*), 8);
 	egress = chancreate(sizeof(Frame*), 8);
