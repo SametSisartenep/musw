@@ -141,6 +141,7 @@ struct Universe
 	double t, timeacc;
 
 	void (*step)(Universe*, double);
+	void (*collide)(Universe*);
 	void (*reset)(Universe*);
 };
 

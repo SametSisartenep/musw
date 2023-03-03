@@ -352,8 +352,10 @@ partywalk:
 				player->oldkdown = player->kdown;
 			}
 
-			while(p->u->timeacc >= Δt)
+			while(p->u->timeacc >= Δt){
 				p->u->step(p->u, Δt);
+				p->u->collide(p->u);
+			}
 		}
 
 		broadcaststate();

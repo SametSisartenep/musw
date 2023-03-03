@@ -1,7 +1,7 @@
 [ ] collision detection
-[ ] toroidal warping
+[✓] toroidal warping
 [ ] respect bullets's ttl
-	[ ] communicate this event with the clients
+	[ ] communicate this event to the clients
 	[ ] explode when the time comes
 [ ] fuel consumption
 [ ] hyperjump
@@ -13,3 +13,4 @@
 	[ ] waiting for a player
 	[ ] main game
 [ ] reduce the amount of data sent on every NSsimstate packet
+[ ] the client must try to connect continously

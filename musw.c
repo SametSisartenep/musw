@@ -41,6 +41,7 @@ Image *skymap;
 Channel *ingress;
 Channel *egress;
 NetConn netconn;
+char deffont[] = "/lib/font/bit/pelm/unicode.9.font";
 char winspec[32];
 int doghosting;
 int debug;
@@ -583,7 +584,7 @@ threadmain(int argc, char *argv[])
 	snprint(winspec, sizeof winspec, "-dx %d -dy %d", SCRWB, SCRHB);
 	if(newwindow(winspec) < 0)
 		sysfatal("newwindow: %r");
-	if(initdraw(nil, nil, nil) < 0)
+	if(initdraw(nil, deffont, "musw") < 0)
 		sysfatal("initdraw: %r");
 	if((mc = initmouse(nil, screen)) == nil)
 		sysfatal("initmouse: %r");

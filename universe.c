@@ -71,6 +71,38 @@ universe_step(Universe *u, double Δt)
 }
 
 static void
+warp(Particle *p)
+{
+	Rectangle r;
+
+	r = Rect(-SCRW/2, -SCRH/2, SCRW/2, SCRH/2);
+
+	if(p->p.x < r.min.x)
+		p->p.x = r.max.x;
+	if(p->p.y < r.min.y)
+		p->p.y = r.max.y;
+	if(p->p.x > r.max.x)
+		p->p.x = r.min.x;
+	if(p->p.y > r.max.y)
+		p->p.y = r.min.y;	
+}
+
+/* collision resolution */
+static void
+universe_collide(Universe *u)
+{
+	Ship *s;
+	Bullet *b;
+
+	for(s = u->ships; s < u->ships+nelem(u->ships); s++){
+		for(b = s->rounds; b < s->rounds+nelem(s->rounds); b++){
+			warp(b);
+		}
+		warp(s);
+	}
+}
+
+static void
 universe_reset(Universe *u)
 {
 	int i, j;
@@ -130,6 +162,7 @@ newuniverse(void)
 	u = emalloc(sizeof(Universe));
 	memset(u, 0, sizeof *u);
 	u->step = universe_step;
+	u->collide = universe_collide;
 	u->reset = universe_reset;
 	return u;
 }
