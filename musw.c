@@ -12,13 +12,6 @@
 #include "dat.h"
 #include "fns.h"
 
-typedef struct Keymap Keymap;
-struct Keymap
-{
-	Rune key;
-	KeyOp op;
-};
-
 Keymap kmap[] = {
 	{.key = Kup,	.op = K↑},
 	{.key = Kleft,	.op = K↺},
@@ -38,6 +31,7 @@ Universe *universe;
 VModel *needlemdl, *wedgemdl;
 Image *screenb;
 Image *skymap;
+Scene *curscene;
 Channel *ingress;
 Channel *egress;
 NetConn netconn;
@@ -311,7 +305,7 @@ threadnetrecv(void *arg)
 		if(debug){
 			rport = frame->udp.rport[0]<<8 | frame->udp.rport[1];
 			lport = frame->udp.lport[0]<<8 | frame->udp.lport[1];
-			fprint(2, "%I!%ud → %I!%ud | rcvd %Φ\n",
+			fprint(2, "%I!%ud ← %I!%ud | rcvd %Φ\n",
 				frame->udp.laddr, lport, frame->udp.raddr, rport, frame);
 		}
 	}
@@ -557,7 +551,7 @@ usage(void)
 void
 threadmain(int argc, char *argv[])
 {
-	uvlong then, now;
+	uvlong then, now, lastpktsent;
 	double frametime;
 	char *server;
 	int fd;
@@ -625,18 +619,25 @@ threadmain(int argc, char *argv[])
 	threadcreate(threadresize, mc, mainstacksize);
 
 	then = nanosec();
+	lastpktsent = 0;
 	io = ioproc();
 	for(;;){
 		now = nanosec();
 		frametime = now - then;
 		then = now;
 
+		if(netconn.state != NCSConnected)
+			lastpktsent += frametime/1e6;
+
+		if(netconn.state == NCSDisconnected ||
+		  (netconn.state == NCSConnecting && lastpktsent >= 1000)){
+			initconn();
+			lastpktsent = 0;
+		}
+
 		universe->star.spr->step(universe->star.spr, frametime/1e6);
 
 		redraw();
-
-		if(netconn.state == NCSDisconnected)
-			initconn();
 
 		iosleep(io, HZ2MS(30));
 	}

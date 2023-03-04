@@ -13,4 +13,5 @@
 	[ ] waiting for a player
 	[ ] main game
 [ ] reduce the amount of data sent on every NSsimstate packet
-[ ] the client must try to connect continously
+[?] the client must try to connect continously
+	> there's an error in the udp stack that doesn't allow the client to receive packets if run before the server is up.

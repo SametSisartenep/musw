@@ -98,14 +98,22 @@ nudgeconns(ulong curts)
 		elapsed = curts - (*ncp)->lastrecvts;
 		elapsednudge = curts - (*ncp)->lastnudgets;
 
-		if((*ncp)->state == NCSConnected && elapsed > ConnTimeout)
-			popconn(*ncp);
-		else if((*ncp)->state == NCSConnected && elapsednudge > 1000){ /* every second */
-			f = newframe(&(*ncp)->udp, NSnudge, (*ncp)->lastseq+1, 0, 0, nil);
-			signframe(f, (*ncp)->dh.priv);
-			sendp(egress, f);
-
-			(*ncp)->lastnudgets = curts;
+		switch((*ncp)->state){
+		case NCSConnected:
+			if(elapsed > ConnTimeout)
+				popconn(*ncp);
+			else if(elapsednudge > 1000){ /* every second */
+				f = newframe(&(*ncp)->udp, NSnudge, (*ncp)->lastseq+1, 0, 0, nil);
+				signframe(f, (*ncp)->dh.priv);
+				sendp(egress, f);
+	
+				(*ncp)->lastnudgets = curts;
+			}
+			break;
+		case NCSConnecting:
+			if(elapsed > ConnTimeout)
+				popconn(*ncp);
+			break;
 		}
 	}
 }
@@ -132,7 +140,7 @@ threadnetrecv(void *arg)
 		if(debug){
 			rport = frame->udp.rport[0]<<8 | frame->udp.rport[1];
 			lport = frame->udp.lport[0]<<8 | frame->udp.lport[1];
-			fprint(2, "%I!%ud → %I!%ud | rcvd %Φ\n",
+			fprint(2, "%I!%ud ← %I!%ud | rcvd %Φ\n",
 				frame->udp.laddr, lport, frame->udp.raddr, rport, frame);
 		}
 	}

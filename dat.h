@@ -57,6 +57,8 @@ enum {
 
 typedef struct VModel VModel;
 typedef struct Sprite Sprite;
+typedef struct Keymap Keymap;
+typedef struct Scene Scene;
 typedef struct Particle Particle;
 typedef struct Bullet Bullet;
 typedef struct Ship Ship;
@@ -97,6 +99,22 @@ struct Sprite
 
 	void (*step)(Sprite*, ulong);
 	void (*draw)(Sprite*, Image*, Point);
+};
+
+struct Keymap
+{
+	Rune key;
+	KeyOp op;
+};
+
+struct Scene
+{
+	char *title;
+	int state;
+
+	Scene *(*δ)(Scene*);
+	void (*step)(Scene*);
+	void (*draw)(Scene*);
 };
 
 struct Particle
