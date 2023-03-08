@@ -12,6 +12,14 @@
 #include "dat.h"
 #include "fns.h"
 
+enum {
+	GSIntro,
+	GSConnecting,
+	GSMatching,
+	GSPlaying,
+	NGAMESTATES
+};
+
 Keymap kmap[] = {
 	{.key = Kup,	.op = K↑},
 	{.key = Kleft,	.op = K↺},
@@ -31,12 +39,15 @@ Universe *universe;
 VModel *needlemdl, *wedgemdl;
 Image *screenb;
 Image *skymap;
-Scene *curscene;
+Sprite *intro;
+State gamestates[NGAMESTATES];
+State *gamestate;
 Channel *ingress;
 Channel *egress;
 NetConn netconn;
 char deffont[] = "/lib/font/bit/pelm/unicode.9.font";
 char winspec[32];
+int weplaying;
 int doghosting;
 int debug;
 
@@ -365,6 +376,8 @@ threadnetppu(void *)
 
 			switch(frame->type){
 			case NSsimstate:
+				weplaying = 1;
+
 				bufp = frame->data;
 				bufp += unpack(bufp, frame->len, "PdPdP",
 					&universe->ships[0].p, &universe->ships[0].θ,
@@ -385,6 +398,7 @@ threadnetppu(void *)
 
 				break;
 			case NSbuhbye:
+				weplaying = 0;
 				netconn.state = NCSDisconnected;
 				break;
 			}
@@ -499,13 +513,20 @@ redraw(void)
 	else
 		draw(screenb, screenb->r, skymap, nil, ZP);
 
-	if(netconn.state == NCSConnecting)
+	switch(gamestate-gamestates){
+	case GSIntro:
+		intro->draw(intro, screenb, subpt(divpt(screenb->r.max, 2), divpt(intro->r.max, 2)));
+		break;
+	case GSConnecting:
 		drawconnecting();
-
-	if(netconn.state == NCSConnected){
+		break;
+	case GSMatching:
+		break;
+	case GSPlaying:
 		drawship(&universe->ships[0], screenb);
 		drawship(&universe->ships[1], screenb);
 		universe->star.spr->draw(universe->star.spr, screenb, subpt(toscreen(universe->star.p), Pt(16,16)));
+		break;
 	}
 
 	draw(screen, screen->r, screenb, nil, ZP);
@@ -539,6 +560,37 @@ resize(void)
 	}
 
 	redraw();
+}
+
+State *intro_δ(State *s, void *arg)
+{
+	double ∆t;
+	static ulong elapsed;
+
+	∆t = *(double*)arg;
+	elapsed += ∆t/1e6;
+	if(elapsed > 5000)
+		return &gamestates[GSConnecting];
+	return s;
+}
+
+State *connecting_δ(State *s, void*)
+{
+	if(netconn.state != NCSConnecting)
+		return &gamestates[GSMatching];
+	return s;
+}
+
+State *matching_δ(State *s, void*)
+{
+	if(netconn.state == NCSConnected && weplaying)
+		return &gamestates[GSPlaying];
+	return s;
+}
+
+State *playing_δ(State *s, void*)
+{
+	return s;
 }
 
 void
@@ -595,7 +647,6 @@ threadmain(int argc, char *argv[])
 
 	proccreate(kbdproc, nil, mainstacksize);
 
-	/* TODO: implement this properly with screens and iodial(2) */
 	fd = dial(server, nil, nil, nil);
 	if(fd < 0)
 		sysfatal("dial: %r");
@@ -610,6 +661,14 @@ threadmain(int argc, char *argv[])
 	universe->ships[0].mdl = needlemdl;
 	universe->ships[1].mdl = wedgemdl;
 	universe->star.spr = readsprite("assets/spr/earth.pic", ZP, Rect(0,0,32,32), 5, 20e3);
+
+	intro = readsprite("assets/spr/intro.pic", ZP, Rect(0,0,640,480), 1, 0);
+
+	gamestates[GSIntro].δ = intro_δ;
+	gamestates[GSConnecting].δ = connecting_δ;
+	gamestates[GSMatching].δ = matching_δ;
+	gamestates[GSPlaying].δ = playing_δ;
+	gamestate = &gamestates[GSIntro];
 
 	ingress = chancreate(sizeof(Frame*), 8);
 	egress = chancreate(sizeof(Frame*), 8);
@@ -626,15 +685,18 @@ threadmain(int argc, char *argv[])
 		frametime = now - then;
 		then = now;
 
-		if(netconn.state != NCSConnected)
-			lastpktsent += frametime/1e6;
+		if(gamestate != &gamestates[GSIntro]){
+			if(netconn.state == NCSConnecting)
+				lastpktsent += frametime/1e6;
 
-		if(netconn.state == NCSDisconnected ||
-		  (netconn.state == NCSConnecting && lastpktsent >= 1000)){
-			initconn();
-			lastpktsent = 0;
+			if(netconn.state == NCSDisconnected ||
+			  (netconn.state == NCSConnecting && lastpktsent >= 1000)){
+				initconn();
+				lastpktsent = 0;
+			}
 		}
 
+		gamestate = gamestate->δ(gamestate, &frametime);
 		universe->star.spr->step(universe->star.spr, frametime/1e6);
 
 		redraw();

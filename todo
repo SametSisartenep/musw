@@ -7,11 +7,14 @@
 [ ] hyperjump
 	[ ] minskytron effect
 	[ ] engine damage on every jump
-[ ] different screens for each game state
-	[ ] intro
-	[ ] connecting to server
-	[ ] waiting for a player
-	[ ] main game
+[✓] different screens for each game state
+	[✓] intro
+	[✓] connecting to server
+	[✓] waiting for a player
+	[✓] main game
 [ ] reduce the amount of data sent on every NSsimstate packet
 [?] the client must try to connect continously
 	> there's an error in the udp stack that doesn't allow the client to receive packets if run before the server is up.
+[ ] more realistic DEC Type 30 CRT emulation
+	[ ] the right colors (fg: 0x3daaf7, fgblur: 0x0063eb, bg0: 0x79cc3e, bg1: 0x7eba1e)
+	[ ] the right decay function
