@@ -473,11 +473,11 @@ threadmain(int argc, char *argv[])
 	fmtinstall(L'Φ', Φfmt);
 	addr = "udp!*!112";
 	ARGBEGIN{
-	case 'a':
-		addr = EARGF(usage());
-		break;
 	case 'd':
 		debug++;
+		break;
+	case 'a':
+		addr = EARGF(usage());
 		break;
 	default:
 		usage();

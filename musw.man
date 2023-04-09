@@ -4,7 +4,7 @@ musw, muswd \- multi-user spacewar!
 .SH SYNOPSIS
 .B games/musw
 [
-.B -d
+.B -dg
 ]
 .I dialstring
 .br
@@ -17,6 +17,10 @@ musw, muswd \- multi-user spacewar!
 .I addr
 ]
 .SH DESCRIPTION
+.I Musw
+is a multi-user, on-line version of
+.IR Spacewar! ,
+the space dogfight simulation game developed by Steve Russell in the 1960s for the PDP-1.
 .SH EXAMPLE
 .SH SOURCE
 .B /sys/src/games/musw

@@ -480,7 +480,7 @@ darkness:
 }
 
 void
-drawconnecting(void)
+drawprogressing(char *s)
 {
 	static double t0;
 	static Point p = {100,300};
@@ -491,11 +491,11 @@ drawconnecting(void)
 		t0 = nanosec();
 
 	if(nanosec()-t0 >= 5e9){ /* every five seconds */
-		p = Pt(ntruerand(SCRW-2*100)+100,ntruerand(SCRH-100)+100);
+		p = Pt(ntruerand(SCRW-stringwidth(font, s)-3*font->width),ntruerand(SCRH-font->height));
 		t0 = nanosec();
 	}
 
-	np = string(screenb, addpt(screenb->r.min, p), display->white, ZP, font, "connecting");
+	np = string(screenb, addpt(screenb->r.min, p), display->white, ZP, font, s);
 
 	for(i = 1; i < 3+1; i++){
 		if(nanosec()-t0 > i*1e9)
@@ -518,9 +518,10 @@ redraw(void)
 		intro->draw(intro, screenb, subpt(divpt(screenb->r.max, 2), divpt(intro->r.max, 2)));
 		break;
 	case GSConnecting:
-		drawconnecting();
+		drawprogressing("connecting");
 		break;
 	case GSMatching:
+		drawprogressing("waiting for players");
 		break;
 	case GSPlaying:
 		drawship(&universe->ships[0], screenb);
@@ -547,8 +548,6 @@ resize(void)
 	if(getwindow(display, Refnone) < 0)
 		sysfatal("resize failed");
 	unlockdisplay(display);
-
-//	screenrf.p = Pt2(screen->r.min.x+Dx(screen->r)/2,screen->r.max.y-Dy(screen->r)/2,1);
 
 	/* ignore move events */
 	if(Dx(screen->r) != SCRW || Dy(screen->r) != SCRH){
@@ -660,7 +659,7 @@ threadmain(int argc, char *argv[])
 		sysfatal("readvmodel: %r");
 	universe->ships[0].mdl = needlemdl;
 	universe->ships[1].mdl = wedgemdl;
-	universe->star.spr = readsprite("assets/spr/earth.pic", ZP, Rect(0,0,32,32), 5, 20e3);
+	universe->star.spr = readsprite("assets/spr/pulsar.pic", ZP, Rect(0,0,64,64), 9, 50);
 
 	intro = readsprite("assets/spr/intro.pic", ZP, Rect(0,0,640,480), 1, 0);
 
