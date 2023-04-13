@@ -1,6 +1,6 @@
 [ ] collision detection
 [✓] toroidal warping
-[ ] respect bullets's ttl
+[✓] respect bullets's ttl
 	[ ] communicate this event to the clients
 	[ ] explode when the time comes
 [ ] fuel consumption
@@ -18,3 +18,5 @@
 [ ] more realistic DEC Type 30 CRT emulation
 	[ ] the right colors (fg: 0x3daaf7, fgblur: 0x0063eb, bg0: 0x79cc3e, bg1: 0x7eba1e)
 	[ ] the right decay function
+[✓] work with PNG files instead of 9 pics
+	> big compressed image(6) files can't be used because of the iounit limits.

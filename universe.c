@@ -55,6 +55,7 @@ ship_fire(Ship *s)
 			s->rounds[i].p = s->p;
 			s->rounds[i].v = addpt2(s->v, bv);
 			s->rounds[i].θ = s->θ;
+			s->rounds[i].ttl = 5;
 			s->rounds[i].fired++;
 			break;
 		}
@@ -65,7 +66,14 @@ ship_fire(Ship *s)
 static void
 universe_step(Universe *u, double Δt)
 {
+	Ship *s;
+	Bullet *b;
+
 	integrate(u, u->t, Δt);
+	for(s = u->ships; s < u->ships+nelem(u->ships); s++)
+		for(b = s->rounds; b < s->rounds+nelem(s->rounds); b++)
+			if(b->fired)
+				b->ttl -= Δt;
 	u->timeacc -= Δt;
 	u->t += Δt;
 }
@@ -96,7 +104,10 @@ universe_collide(Universe *u)
 
 	for(s = u->ships; s < u->ships+nelem(u->ships); s++){
 		for(b = s->rounds; b < s->rounds+nelem(s->rounds); b++){
-			warp(b);
+			if(b->fired && b->ttl <= 0)
+				b->fired = 0;
+			if(b->fired)
+				warp(b);
 		}
 		warp(s);
 	}

@@ -46,6 +46,7 @@ void inituniverse(Universe*);
  */
 Sprite *newsprite(Image*, Point, Rectangle, int, ulong);
 Sprite *readsprite(char*, Point, Rectangle, int, ulong);
+Sprite *readpngsprite(char*, Point, Rectangle, int, ulong);
 void delsprite(Sprite*);
 
 /*

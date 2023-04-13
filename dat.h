@@ -124,7 +124,7 @@ struct Particle
 struct Bullet
 {
 	Particle;
-	ulong ttl; /* in s */
+	double ttl; /* in s */
 	int fired; /* XXX: |v| != 0 */
 };
 

@@ -526,7 +526,7 @@ redraw(void)
 	case GSPlaying:
 		drawship(&universe->ships[0], screenb);
 		drawship(&universe->ships[1], screenb);
-		universe->star.spr->draw(universe->star.spr, screenb, subpt(toscreen(universe->star.p), Pt(16,16)));
+		universe->star.spr->draw(universe->star.spr, screenb, subpt(toscreen(universe->star.p), divpt(universe->star.spr->r.max, 2)));
 		break;
 	}
 
@@ -659,9 +659,9 @@ threadmain(int argc, char *argv[])
 		sysfatal("readvmodel: %r");
 	universe->ships[0].mdl = needlemdl;
 	universe->ships[1].mdl = wedgemdl;
-	universe->star.spr = readsprite("assets/spr/pulsar.pic", ZP, Rect(0,0,64,64), 9, 50);
+	universe->star.spr = readpngsprite("assets/spr/pulsar.png", ZP, Rect(0,0,64,64), 9, 50);
 
-	intro = readsprite("assets/spr/intro.pic", ZP, Rect(0,0,640,480), 1, 0);
+	intro = readpngsprite("assets/spr/intro.png", ZP, Rect(0,0,640,480), 28, 100);
 
 	gamestates[GSIntro].δ = intro_δ;
 	gamestates[GSConnecting].δ = connecting_δ;
@@ -697,6 +697,7 @@ threadmain(int argc, char *argv[])
 
 		gamestate = gamestate->δ(gamestate, &frametime);
 		universe->star.spr->step(universe->star.spr, frametime/1e6);
+		intro->step(intro, frametime/1e6);
 
 		redraw();
 

@@ -3,6 +3,7 @@
 #include <ip.h>
 #include <mp.h>
 #include <libsec.h>
+#include <thread.h>
 #include <draw.h>
 #include <geometry.h>
 #include "dat.h"
@@ -63,6 +64,45 @@ readsprite(char *sheetfile, Point sp, Rectangle r, int nframes, ulong period)
 	if(fd < 0)
 		sysfatal("readsprite: %r");
 	sheet = readimage(display, fd, 1);
+	close(fd);
+
+	return newsprite(sheet, sp, r, nframes, period);
+}
+
+static void
+decproc(void *arg)
+{
+	int fd, *pfd;
+
+	pfd = arg;
+	fd = pfd[2];
+
+	close(pfd[0]);
+	dup(fd, 0);
+	close(fd);
+	dup(pfd[1], 1);
+	close(pfd[1]);
+
+	execl("/bin/png", "png", "-t9", nil);
+	threadexitsall("execl: %r");
+}
+
+Sprite *
+readpngsprite(char *sheetfile, Point sp, Rectangle r, int nframes, ulong period)
+{
+	Image *sheet;
+	int fd, pfd[3];
+
+	if(pipe(pfd) < 0)
+		sysfatal("pipe: %r");
+	fd = open(sheetfile, OREAD);
+	if(fd < 0)
+		sysfatal("readpngsprite: %r");
+	pfd[2] = fd;
+	procrfork(decproc, pfd, mainstacksize, RFFDG|RFNAMEG|RFNOTEG);
+	close(pfd[1]);
+	sheet = readimage(display, pfd[0], 1);
+	close(pfd[0]);
 	close(fd);
 
 	return newsprite(sheet, sp, r, nframes, period);
