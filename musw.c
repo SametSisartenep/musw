@@ -327,6 +327,7 @@ void
 threadnetppu(void *)
 {
 	int i, j;
+	int nfired[2], bi;
 	uchar *bufp;
 	Frame *frame, *newf;
 
@@ -384,11 +385,20 @@ threadnetppu(void *)
 					&universe->ships[1].p, &universe->ships[1].θ,
 					&universe->star.p);
 
-					/* TODO: only recv the fired ones */
-					for(i = 0; i < nelem(universe->ships); i++)
-						for(j = 0; j < nelem(universe->ships[i].rounds); j++)
-							bufp += unpack(bufp, frame->len - (bufp-frame->data), "Pd",
-								&universe->ships[i].rounds[j].p, &universe->ships[i].rounds[j].θ);
+				bufp += unpack(bufp, frame->len - (bufp-frame->data), "bb", &nfired[0], &nfired[1]);
+
+				if(debug)
+					fprint(2, "nfired0 %d nfired1 %d\n", nfired[0], nfired[1]);
+
+				for(i = 0; i < nelem(universe->ships); i++)
+					for(j = 0; j < nfired[i]; j++){
+						bufp += unpack(bufp, frame->len - (bufp-frame->data), "b",
+							&bi);
+						if(debug)
+							fprint(2, "bi %d\n", bi);
+						bufp += unpack(bufp, frame->len - (bufp-frame->data), "Pd",
+							&universe->ships[i].rounds[bi].p, &universe->ships[i].rounds[bi].θ);
+					}
 				break;
 			case NSnudge:
 				newf = newframe(nil, NCnudge, frame->seq+1, frame->seq, 0, nil);

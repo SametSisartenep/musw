@@ -45,6 +45,14 @@ vpack(uchar *p, int n, char *fmt, va_list a)
 		switch(*fmt++){
 		case '\0':
 			return p - p0;
+		case 'b':
+			k = va_arg(a, ulong);
+
+			if(p+1 > e)
+				goto err;
+
+			*p++ = k;
+			break;
 		case 'd':
 			d.x = va_arg(a, double);
 
@@ -119,6 +127,12 @@ vunpack(uchar *p, int n, char *fmt, va_list a)
 		switch(*fmt++){
 		case '\0':
 			return p - p0;
+		case 'b':
+			if(p+1 > e)
+				goto err;
+
+			*va_arg(a, ulong*) = *p++;
+			break;
 		case 'd':
 			if(p+8 > e)
 				goto err;

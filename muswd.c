@@ -279,6 +279,7 @@ void
 broadcaststate(void)
 {
 	int i, j, k;
+	int nfired[2];
 	uchar *bufp;
 	Frame *frame;
 	NetConn *pnc;
@@ -296,11 +297,19 @@ broadcaststate(void)
 				p->u->ships[1].p, p->u->ships[1].θ,
 				p->u->star.p);
 
-			/* TODO: only send the fired ones */
+			nfired[0] = nfired[1] = 0;
 			for(j = 0; j < nelem(p->u->ships); j++)
 				for(k = 0; k < nelem(p->u->ships[j].rounds); k++)
-					bufp += pack(bufp, frame->len - (bufp-frame->data), "Pd",
-						p->u->ships[j].rounds[k].p, p->u->ships[j].rounds[k].θ);
+					if(p->u->ships[j].rounds[k].fired)
+						nfired[j]++;
+
+			bufp += pack(bufp, frame->len - (bufp-frame->data), "bb", nfired[0], nfired[1]);
+
+			for(j = 0; j < nelem(p->u->ships); j++)
+				for(k = 0; k < nelem(p->u->ships[j].rounds); k++)
+					if(p->u->ships[j].rounds[k].fired)
+						bufp += pack(bufp, frame->len - (bufp-frame->data), "bPd",
+							k, p->u->ships[j].rounds[k].p, p->u->ships[j].rounds[k].θ);
 
 			signframe(frame, pnc->dh.priv);
 
