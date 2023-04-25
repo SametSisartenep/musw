@@ -13,6 +13,12 @@ typedef enum {
 	NStrokes
 } Stroke;
 
+typedef enum {
+	Drawing,
+	Zooming,
+	Rotating
+} State;
+
 /*
  * Vector model - made out of lines and curves
  */
@@ -47,10 +53,11 @@ char *strokename[NStrokes] = {
 RFrame worldrf;
 Object mainobj;
 Stroke stroke;
+State curstate;
 Point2 ptstk[3];
 Point2 *ptstkp;
 char *vmdlfile;
-Image *ptselcol;
+Image *ptselcol, *guidecol;
 
 void resized(void);
 
@@ -257,7 +264,7 @@ drawstrokepts(void)
 
 	while(sp-- > ptstk){
 		pt = toscreen(invrframexform(*sp, mainobj));
-		fillellipse(screen, pt, 2, 2, ptselcol, ZP);
+		fillellipse(screen, pt, 2, 2, guidecol, ZP);
 		draw(screen, rectaddpt(Rect(0,0,1,1), pt), display->black, nil, ZP);
 	}
 }
@@ -278,6 +285,34 @@ drawinfo(void)
 }
 
 void
+drawguides(void)
+{
+	Point p, hingepts[3];
+	Point2 hinge[3];
+	char buf[128];
+	double θ;
+	int i;
+
+	if(curstate == Rotating){
+		hinge[2] = Pt2(1,0,1);
+		hinge[2] = invrframexform(hinge[2], mainobj);
+		θ = atan2(hinge[2].y, hinge[2].x);
+		hinge[0] = Vec2(1,0);
+		hinge[2] = normvec2(Vec2(hinge[2].x,hinge[2].y));
+		hinge[1] = normvec2(divpt2(addpt2(hinge[0], hinge[2]), 2));
+
+		line(screen, toscreen(Pt2(0,0,1)), toscreen(addpt2(Pt2(0,0,1), mulpt2(hinge[2], 50))), 0, 0, 0, guidecol, ZP);
+		for(i = 0; i < nelem(hinge); i++)
+			hingepts[i] = toscreen(addpt2(Pt2(0,0,1), mulpt2(hinge[i], i&1? 25: 20)));
+		bezspline(screen, hingepts, nelem(hingepts), 0, 0, 0, guidecol, ZP);
+
+		p = toscreen(addpt2(Pt2(0,0,1), mulpt2(hinge[1], 50)));
+		snprint(buf, sizeof buf, "%g°", θ/DEG);
+		string(screen, p, guidecol, ZP, font, buf);
+	}
+}
+
+void
 redraw(void)
 {
 	lockdisplay(display);
@@ -285,6 +320,7 @@ redraw(void)
 	drawaxes();
 	drawvmodel(screen, mainobj.mdl);
 	drawstrokepts();
+	drawguides();
 	drawinfo();
 	flushimage(display, 1);
 	unlockdisplay(display);
@@ -390,6 +426,7 @@ zoom(Mousectl *mc, Keyboardctl *)
 	double z; /* zooming factor */
 	Point oldxy, Δxy;
 
+	curstate = Zooming;
 	oldxy = mc->xy;
 
 	for(;;){
@@ -402,6 +439,7 @@ zoom(Mousectl *mc, Keyboardctl *)
 		oldxy = mc->xy;
 		redraw();
 	}
+	curstate = Drawing;
 }
 
 void
@@ -410,6 +448,7 @@ rota(Mousectl *mc, Keyboardctl *)
 	Point2 p;
 	double oldθ, θ;
 
+	curstate = Rotating;
 	p = rframexform(fromscreen(mc->xy), mainobj);
 	oldθ = atan2(p.y, p.x);
 
@@ -422,6 +461,7 @@ rota(Mousectl *mc, Keyboardctl *)
 		mainobj.rotate(&mainobj, θ);
 		redraw();
 	}
+	curstate = Drawing;
 }
 
 void
@@ -485,7 +525,7 @@ threadmain(int argc, char *argv[])
 
 	if(newwindow(nil) < 0)
 		sysfatal("newwindow: %r");
-	if(initdraw(nil, nil, nil) < 0)
+	if(initdraw(nil, nil, "vmodeled") < 0)
 		sysfatal("initdraw: %r");
 	if((mc = initmouse(nil, screen)) == nil)
 		sysfatal("initmouse: %r");
@@ -507,6 +547,7 @@ threadmain(int argc, char *argv[])
 	ptstkp = &ptstk[0];
 
 	ptselcol = eallocimage(display, Rect(0,0,1,1), screen->chan, 1, DYellow);
+	guidecol = eallocimage(display, Rect(0,0,1,1), screen->chan, 1, DPalebluegreen);
 
 	display->locking = 1;
 	unlockdisplay(display);
