@@ -106,7 +106,7 @@ nudgeconns(ulong curts)
 				f = newframe(&(*ncp)->udp, NSnudge, (*ncp)->lastseq+1, 0, 0, nil);
 				signframe(f, (*ncp)->dh.priv);
 				sendp(egress, f);
-	
+
 				(*ncp)->lastnudgets = curts;
 			}
 			break;

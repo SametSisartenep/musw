@@ -166,6 +166,9 @@ drawbullets(Ship *ship, Image *dst)
 	Point2 v;
 
 	for(i = 0; i < nelem(ship->rounds); i++){
+		if(!ship->rounds[i].fired)
+			continue;
+
 		b = &ship->rounds[i];
 		v = Vec2(-1,0); /* it's pointing backwards to paint the tail */
 		Matrix R = {
@@ -391,13 +394,18 @@ threadnetppu(void *)
 					fprint(2, "nfired0 %d nfired1 %d\n", nfired[0], nfired[1]);
 
 				for(i = 0; i < nelem(universe->ships); i++)
+					for(j = 0; j < nelem(universe->ships[i].rounds); j++)
+						universe->ships[i].rounds[j].fired = 0;
+
+				for(i = 0; i < nelem(universe->ships); i++)
 					for(j = 0; j < nfired[i]; j++){
 						bufp += unpack(bufp, frame->len - (bufp-frame->data), "b",
 							&bi);
 						if(debug)
-							fprint(2, "bi %d\n", bi);
+							fprint(2, "si %d bi %d\n", i, bi);
 						bufp += unpack(bufp, frame->len - (bufp-frame->data), "Pd",
 							&universe->ships[i].rounds[bi].p, &universe->ships[i].rounds[bi].θ);
+						universe->ships[i].rounds[bi].fired++;
 					}
 				break;
 			case NSnudge:
