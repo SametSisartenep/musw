@@ -248,6 +248,21 @@ drawaxes(void)
 }
 
 void
+drawstrokepts(void)
+{
+	Point2 *sp;
+	Point pt;
+
+	sp = ptstkp;
+
+	while(sp-- > ptstk){
+		pt = toscreen(invrframexform(*sp, mainobj));
+		fillellipse(screen, pt, 2, 2, ptselcol, ZP);
+		draw(screen, rectaddpt(Rect(0,0,1,1), pt), display->black, nil, ZP);
+	}
+}
+
+void
 drawinfo(void)
 {
 	Point p;
@@ -269,6 +284,7 @@ redraw(void)
 	draw(screen, screen->r, display->black, nil, ZP);
 	drawaxes();
 	drawvmodel(screen, mainobj.mdl);
+	drawstrokepts();
 	drawinfo();
 	flushimage(display, 1);
 	unlockdisplay(display);
