@@ -1,0 +1,54 @@
+.TH VMODELED 1
+.SH NAME
+vmodeled \- musw vector model editor
+.SH SYNOPSIS
+.B vmodeled
+.I file
+.SH DESCRIPTION
+.I Vmodeled
+is a vector model—
+.B VModel
+—editor created with the purpose of customizing
+.IR musw (1)
+ships defined in the
+.B vmdl
+file format.
+.PP
+To create a new model you have to point the program to an existing
+.IR file .
+Once the editor comes up, you can begin drawing lines by means of points. One LMB click will place a point, and on every pair you place you will get a line drawn and added to the model format stack. You can also draw curves by pressing
+.BR c ,
+which take three points instead of two. To go back to drawing lines, press
+.BR l .
+.PP
+While you are drawing it's possible you misplace a point, in which case you can scratch the procedure by pressing
+.BR Esc .
+If on the other hand you messed up a primitive, you can press
+.B z
+to pop and discard the latest one from the model format stack. You can also make corrections to any of the primitives by moving their defining points. To do that press
+.BR m ,
+then LMB click over the point you are interested in and hold while you move the mouse, then release to put it at the new location. To get back to drawing press
+.BR d .
+.PP
+There are two other (non-invasive) operations you can do over the model for visualization and ergonomy purposes. The first one is rotation, by pressing the RMB and orbiting around the center of the window. The second one, zooming. To zoom press and hold the MMB, then move up or down to zoom in or out respectively. When rotating the object you'll receive some feedback in the form of a half-circle bevel protractor-like guide. When zooming though, feedback is left to the user.
+.PP
+To save the model into the file, press
+.BR w .
+.br
+To exit the editor, press
+.B q
+or
+.BR Delete .
+.IP
+.I
+Notice that none of them will ask you to save the file before quitting.
+.SH EXAMPLE
+.SH SOURCE
+.B /sys/src/games/musw/vmodeled
+.SH SEE ALSO
+.IR musw (1)
+.SH BUGS
+There's no redo functionality.
+.SH HISTORY
+The zoom procedure was very much stolen from
+.IR galaxy (1) .

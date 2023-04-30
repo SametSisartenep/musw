@@ -25,6 +25,8 @@ the space dogfight simulation game developed by Steve Russell in the 1960s for t
 .SH SOURCE
 .B /sys/src/games/musw
 .SH SEE ALSO
+.IR vmodeled (1)
+.br
 https://www.masswerk.at/spacewar/
 .br
 https://www.masswerk.at/spacewar/SpacewarOrigin.html
