@@ -16,7 +16,9 @@ typedef enum {
 typedef enum {
 	Drawing,
 	Zooming,
-	Rotating
+	Rotating,
+	Movingpts,
+	NStates
 } State;
 
 /*
@@ -48,6 +50,13 @@ struct Object
 char *strokename[NStrokes] = {
  [SLine]	"line",
  [SCurve]	"curve",
+};
+
+char *statename[NStates] = {
+ [Drawing]	"drawing",
+ [Zooming]	"zooming",
+ [Rotating]	"rotating",
+ [Movingpts]	"moving",
 };
 
 RFrame worldrf;
@@ -282,6 +291,9 @@ drawinfo(void)
 	p.y += font->height;
 	snprint(buf, sizeof buf, "op %s", strokename[stroke]);
 	string(screen, addpt(screen->r.min, p), display->white, ZP, font, buf);
+	p.y += font->height;
+	snprint(buf, sizeof buf, "s %s", statename[curstate]);
+	string(screen, addpt(screen->r.min, p), display->white, ZP, font, buf);
 }
 
 void
@@ -421,6 +433,30 @@ plot(Mousectl *mc, Keyboardctl *)
 }
 
 void
+movept(Mousectl *mc, Keyboardctl *)
+{
+	Point2 p0, p1, *pp;
+	VModel *mdl;
+
+	p1 = fromscreen(mc->xy); /* screen to world */
+	mdl = mainobj.mdl;
+
+	for(pp = mdl->pts; pp < mdl->pts+mdl->npts; pp++){
+		p0 = invrframexform(*pp, mainobj); /* object to world */
+		if(vec2len(subpt2(p0, p1)) <= 2){
+			for(;;){
+				readmouse(mc);
+				if(mc->buttons != 1)
+					break;
+				*pp = rframexform(fromscreen(mc->xy), mainobj);
+				redraw();
+			}
+			break;
+		}
+	}
+}
+
+void
 zoom(Mousectl *mc, Keyboardctl *)
 {
 	double z; /* zooming factor */
@@ -467,11 +503,15 @@ rota(Mousectl *mc, Keyboardctl *)
 void
 mouse(Mousectl *mc, Keyboardctl *kc)
 {
-	if((mc->buttons&1) != 0)
-		plot(mc, kc);
-	if((mc->buttons&2) != 0)
+	if((mc->buttons & 1) != 0){
+		if(curstate == Drawing)
+			plot(mc, kc);
+		else if(curstate == Movingpts)
+			movept(mc, kc);
+	}
+	if((mc->buttons & 2) != 0)
 		zoom(mc, kc);
-	if((mc->buttons&4) != 0)
+	if((mc->buttons & 4) != 0)
 		rota(mc, kc);
 }
 
@@ -490,6 +530,12 @@ key(Rune r)
 		break;
 	case 'c':
 		stroke = SCurve;
+		break;
+	case 'm':
+		curstate = Movingpts;
+		break;
+	case 'd':
+		curstate = Drawing;
 		break;
 	case 'z':
 		undo();
