@@ -232,6 +232,26 @@ initconn(void)
 }
 
 void
+buhbye(void)
+{
+	Frame *frame;
+	int i, naptime;
+
+	if(netconn.state != NCSConnected)
+		return;
+
+	i = 10;
+	naptime = 2000/i;
+	while(i--){
+		frame = newframe(nil, NCbuhbye, netconn.lastseq+1, 0, 0, nil);
+		signframe(frame, netconn.dh.priv);
+		sendp(egress, frame);
+
+		sleep(naptime);
+	}
+}
+
+void
 sendkeys(ulong kdown)
 {
 	Frame *frame;
@@ -273,8 +293,12 @@ kbdproc(void *)
 		}
 		if(buf[0] == 'c'){
 			if(utfrune(buf, Kdel)){
+defenestrate:
 				close(fd);
 				threadexitsall(nil);
+			}else if(utfrune(buf, 'q')){
+				buhbye();
+				goto defenestrate;
 			}
 		}
 		if(buf[0] != 'k' && buf[0] != 'K')
@@ -410,6 +434,15 @@ threadnetppu(void *)
 				break;
 			case NSnudge:
 				newf = newframe(nil, NCnudge, frame->seq+1, frame->seq, 0, nil);
+				signframe(newf, netconn.dh.priv);
+
+				sendp(egress, newf);
+
+				break;
+			case NSawol:
+				weplaying = 0;
+
+				newf = newframe(nil, NCawol, frame->seq+1, frame->seq, 0, nil);
 				signframe(newf, netconn.dh.priv);
 
 				sendp(egress, newf);
@@ -607,6 +640,8 @@ State *matching_δ(State *s, void*)
 
 State *playing_δ(State *s, void*)
 {
+	if(!weplaying)
+		return &gamestates[GSMatching];
 	return s;
 }
 

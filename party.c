@@ -117,7 +117,7 @@ playerq_del(Playerq *pq, Player *p)
 		return;
 	}
 
-	for(np = pq->head; np->next != nil; np = np->next)
+	for(np = pq->head; np != nil && np->next != nil; np = np->next)
 		if(np->next == p){
 			np->next = np->next->next;
 			p->next = nil;

@@ -47,6 +47,8 @@ dissolveparty(Player *player)
 {
 	int i;
 	Party *p;
+	Player *adv;
+	Frame *f;
 
 	/*
 	 * kick the player and put their adversary back in the
@@ -55,16 +57,25 @@ dissolveparty(Player *player)
 	for(p = theparty.next; p != &theparty; p = p->next)
 		for(i = 0; i < nelem(p->players); i++)
 			if(p->players[i] == player){
-				delplayer(p->players[i]);
-				players.put(&players, p->players[i^1]);
+				adv = p->players[i^1];
+
+				players.put(&players, adv);
 				delparty(p);
+
+				/* notify the adversary */
+				f = newframe(&adv->conn->udp, NSawol, 0, 0, 0, nil);
+				signframe(f, adv->conn->dh.priv);
+				sendp(egress, f);
+
+				return;
 			}
 
 	/*
-	 * also clean the player queue
-	 * TODO: has nothing to do with the party
+	 * make sure to free the player even if there's no
+	 * party going on.
 	 */
 	players.del(&players, player);
+	delplayer(player);
 }
 
 int

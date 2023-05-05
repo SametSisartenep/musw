@@ -6,9 +6,7 @@ vmodeled \- musw vector model editor
 .I file
 .SH DESCRIPTION
 .I Vmodeled
-is a vector model—
-.B VModel
-—editor created with the purpose of customizing
+is a vector model (VModel) editor created with the purpose of customizing
 .IR musw (1)
 ships defined in the
 .B vmdl
