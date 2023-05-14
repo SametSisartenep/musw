@@ -32,18 +32,18 @@ enum {
 	NShi,			/* S accepts. sends P and G for DHX */
 	NCdhx		= 12,	/* C shares pubkey */
 	NSdhx,			/* S shares pubkey */
-	NCnudge		= 16,	/* nudge ACK */
-	NSnudge,		/* check the pulse of the line */
+	NCnudge		= 16,	/* C ACKs nudge */
+	NSnudge,		/* S checks the pulse of the line */
 
 	NCinput		= 20,	/* C sends player input state */
 	NSsimstate,		/* S sends current simulation state */
-	NCawol		= 22,	/* AWOL ACK */
-	NSawol,			/* notify the adversary flew away */
+	NCawol		= 22,	/* C ACKs AWOL */
+	NSawol,			/* S notifies the adversary flew away */
 
-	NCbuhbye	= 30,
-	NSbuhbye,
+	NCbuhbye	= 30,	/* C quits gracefully */
+	NSbuhbye,		/* S kicks the player out */
 
-	NSerror 	= 66	/* report an error */
+	NSerror 	= 66	/* S reports an error */
 };
 
 enum {

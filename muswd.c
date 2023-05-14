@@ -67,9 +67,9 @@ dissolveparty(Player *player)
 				signframe(f, adv->conn->dh.priv);
 				sendp(egress, f);
 
-				return;
+				goto kickplayer;
 			}
-
+kickplayer:
 	/*
 	 * make sure to free the player even if there's no
 	 * party going on.

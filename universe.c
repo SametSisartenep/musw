@@ -95,7 +95,7 @@ warp(Particle *p)
 		p->p.y = r.min.y;	
 }
 
-/* collision resolution */
+/* collision detection and resolution */
 static void
 universe_collide(Universe *u)
 {

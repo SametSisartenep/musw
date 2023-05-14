@@ -737,7 +737,11 @@ threadmain(int argc, char *argv[])
 		frametime = now - then;
 		then = now;
 
-		if(gamestate != &gamestates[GSIntro]){
+		switch(gamestate-gamestates){
+		case GSPlaying:
+			universe->star.spr->step(universe->star.spr, frametime/1e6);
+			/* fallthrough */
+		default:
 			if(netconn.state == NCSConnecting)
 				lastpktsent += frametime/1e6;
 
@@ -746,11 +750,12 @@ threadmain(int argc, char *argv[])
 				initconn();
 				lastpktsent = 0;
 			}
+			break;
+		case GSIntro:
+			intro->step(intro, frametime/1e6);
+			break;
 		}
-
 		gamestate = gamestate->δ(gamestate, &frametime);
-		universe->star.spr->step(universe->star.spr, frametime/1e6);
-		intro->step(intro, frametime/1e6);
 
 		redraw();
 
