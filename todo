@@ -1,17 +1,20 @@
 [ ] collision detection
 [✓] toroidal warping
-[✓] respect bullets's ttl
+[ ] respect bullets's ttl
 	[✓] communicate this event to the clients (δ: fired 1 → 0)
 	[ ] explode when the time comes
 [ ] fuel consumption
 [ ] hyperjump
 	[ ] minskytron effect
 	[ ] engine damage on every jump
+[ ] nozzle exhaust plume rendering
 [✓] different screens for each game state
 	[✓] intro
 	[✓] connecting to server
 	[✓] waiting for a player
 	[✓] main game
+[ ] keep a score
+[ ] manage health
 [ ] reduce the amount of data sent on every NSsimstate packet
 	[✓] only send the fired bullets
 	[ ] bit packing

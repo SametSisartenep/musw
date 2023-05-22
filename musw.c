@@ -20,6 +20,11 @@ enum {
 	NGAMESTATES
 };
 
+enum {
+	VFX_BULLET_EXPLOSION,
+	NVFX
+};
+
 Keymap kmap[] = {
 	{.key = Kup,	.op = K↑},
 	{.key = Kleft,	.op = K↺},
@@ -35,11 +40,13 @@ Keymap kmap[] = {
 ulong kdown;
 
 RFrame screenrf;
-Universe *universe;
+Universe *universe, *olduniverse;
 VModel *needlemdl, *wedgemdl;
 Image *screenb;
 Image *skymap;
 Sprite *intro;
+Sprite *vfxtab[NVFX];
+Vfx vfxqueue;
 State gamestates[NGAMESTATES];
 State *gamestate;
 Channel *ingress;
@@ -63,6 +70,16 @@ Point2
 fromscreen(Point p)
 {
 	return rframexform(Pt2(p.x,p.y,1), screenrf);
+}
+
+void
+swapuniverses(void)
+{
+	Universe *u;
+
+	u = universe;
+	universe = olduniverse;
+	olduniverse = u;
 }
 
 /*
@@ -166,10 +183,11 @@ drawbullets(Ship *ship, Image *dst)
 	Point2 v;
 
 	for(i = 0; i < nelem(ship->rounds); i++){
-		if(!ship->rounds[i].fired)
+		b = &ship->rounds[i];
+
+		if(!b->fired)
 			continue;
 
-		b = &ship->rounds[i];
 		v = Vec2(-1,0); /* it's pointing backwards to paint the tail */
 		Matrix R = {
 			cos(b->θ), -sin(b->θ), 0,
@@ -406,6 +424,8 @@ threadnetppu(void *)
 			case NSsimstate:
 				weplaying = 1;
 
+				swapuniverses();
+
 				bufp = frame->data;
 				bufp += unpack(bufp, frame->len, "PdPdP",
 					&universe->ships[0].p, &universe->ships[0].θ,
@@ -431,6 +451,11 @@ threadnetppu(void *)
 							&universe->ships[i].rounds[bi].p, &universe->ships[i].rounds[bi].θ);
 						universe->ships[i].rounds[bi].fired++;
 					}
+
+				for(i = 0; i < nelem(universe->ships); i++)
+					for(j = 0; j < nelem(universe->ships[i].rounds); j++)
+						if(!universe->ships[i].rounds[j].fired && olduniverse->ships[i].rounds[j].fired)
+							addvfx(&vfxqueue, newvfx(vfxtab[VFX_BULLET_EXPLOSION]->clone(vfxtab[VFX_BULLET_EXPLOSION]), toscreen(universe->ships[i].rounds[j].p), 1));
 				break;
 			case NSnudge:
 				newf = newframe(nil, NCnudge, frame->seq+1, frame->seq, 0, nil);
@@ -557,6 +582,8 @@ drawprogressing(char *s)
 void
 redraw(void)
 {
+	Vfx *vfx;
+
 	lockdisplay(display);
 
 	if(doghosting)
@@ -580,6 +607,9 @@ redraw(void)
 		universe->star.spr->draw(universe->star.spr, screenb, subpt(toscreen(universe->star.p), divpt(universe->star.spr->r.max, 2)));
 		break;
 	}
+
+	for(vfx = vfxqueue.next; vfx != &vfxqueue; vfx = vfx->next)
+		vfx->draw(vfx, screenb);
 
 	draw(screen, screen->r, screenb, nil, ZP);
 
@@ -659,6 +689,7 @@ threadmain(int argc, char *argv[])
 	double frametime;
 	char *server;
 	int fd;
+	Vfx *vfx;
 	Mousectl *mc;
 	Ioproc *io;
 
@@ -704,17 +735,21 @@ threadmain(int argc, char *argv[])
 		sysfatal("dial: %r");
 
 	universe = newuniverse();
+	olduniverse = newuniverse();
 	needlemdl = readvmodel("assets/mdl/needle.vmdl");
 	if(needlemdl == nil)
 		sysfatal("readvmodel: %r");
 	wedgemdl = readvmodel("assets/mdl/wedge.vmdl");
 	if(wedgemdl == nil)
 		sysfatal("readvmodel: %r");
-	universe->ships[0].mdl = needlemdl;
-	universe->ships[1].mdl = wedgemdl;
-	universe->star.spr = readpngsprite("assets/spr/pulsar.png", ZP, Rect(0,0,64,64), 9, 50);
+	olduniverse->ships[0].mdl = universe->ships[0].mdl = needlemdl;
+	olduniverse->ships[1].mdl = universe->ships[1].mdl = wedgemdl;
+	olduniverse->star.spr = universe->star.spr = readpngsprite("assets/spr/pulsar.png", ZP, Rect(0,0,64,64), 9, 50);
 
 	intro = readpngsprite("assets/spr/intro.png", ZP, Rect(0,0,640,480), 28, 100);
+
+	vfxtab[VFX_BULLET_EXPLOSION] = readpngsprite("assets/vfx/bullet.explosion.png", ZP, Rect(0, 0, 32, 32), 12, 100);
+	initvfx(&vfxqueue);
 
 	gamestates[GSIntro].δ = intro_δ;
 	gamestates[GSConnecting].δ = connecting_δ;
@@ -740,6 +775,8 @@ threadmain(int argc, char *argv[])
 		switch(gamestate-gamestates){
 		case GSPlaying:
 			universe->star.spr->step(universe->star.spr, frametime/1e6);
+			for(vfx = vfxqueue.next; vfx != &vfxqueue; vfx = vfx->next)
+				vfx->step(vfx, frametime/1e6);
 			/* fallthrough */
 		default:
 			if(netconn.state == NCSConnecting)

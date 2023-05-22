@@ -418,8 +418,8 @@ fprintstates(int fd)
 
 	for(p = theparty.next; p != &theparty; p = p->next, i++){
 		for(s = &p->u->ships[0]; s-p->u->ships < nelem(p->u->ships); s++){
-			fprint(fd, "%ld s%lld k%d p %v v %v θ %g ω %g m %g f %d\n",
-				i, s-p->u->ships, s->kind, s->p, s->v, s->θ, s->ω, s->mass, s->fuel);
+			fprint(fd, "%ld s%lld p %v v %v θ %g ω %g m %g f %d\n",
+				i, s-p->u->ships, s->p, s->v, s->θ, s->ω, s->mass, s->fuel);
 		}
 		fprint(fd, "%ld S p %v m %g\n", i, p->u->star.p, p->u->star.mass);
 	}

@@ -50,6 +50,14 @@ Sprite *readpngsprite(char*, Point, Rectangle, int, ulong);
 void delsprite(Sprite*);
 
 /*
+ * vfx
+ */
+Vfx *newvfx(Sprite*, Point, int);
+void delvfx(Vfx*);
+void addvfx(Vfx*, Vfx*);
+void initvfx(Vfx*);
+
+/*
  * net
  */
 void dhgenpg(ulong*, ulong*);

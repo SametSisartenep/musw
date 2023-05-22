@@ -59,6 +59,7 @@ enum {
 
 typedef struct VModel VModel;
 typedef struct Sprite Sprite;
+typedef struct Vfx Vfx;
 typedef struct Keymap Keymap;
 typedef struct State State;
 typedef struct Particle Particle;
@@ -101,6 +102,18 @@ struct Sprite
 
 	void (*step)(Sprite*, ulong);
 	void (*draw)(Sprite*, Image*, Point);
+	Sprite *(*clone)(Sprite*);
+};
+
+struct Vfx
+{
+	Sprite *a;	/* animation */
+	Point p;
+	int times;	/* to repeat. -1 loops forever */
+	Vfx *prev, *next;
+
+	void (*step)(Vfx*, ulong);
+	void (*draw)(Vfx*, Image*);
 };
 
 struct Keymap
@@ -133,7 +146,6 @@ struct Bullet
 struct Ship
 {
 	Particle;
-	Kind kind;
 	int fuel;
 	Bullet rounds[10];
 	VModel *mdl;

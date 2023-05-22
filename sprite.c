@@ -35,6 +35,12 @@ sprite_draw(Sprite *spr, Image *dst, Point dp)
 	draw(dst, rectaddpt(spr->r, dp), spr->sheet, nil, sp);
 }
 
+static Sprite *
+sprite_clone(Sprite *spr)
+{
+	return newsprite(spr->sheet, spr->sp, spr->r, spr->nframes, spr->period);
+}
+
 Sprite *
 newsprite(Image *sheet, Point sp, Rectangle r, int nframes, ulong period)
 {
@@ -50,6 +56,7 @@ newsprite(Image *sheet, Point sp, Rectangle r, int nframes, ulong period)
 	spr->elapsed = 0;
 	spr->step = sprite_step;
 	spr->draw = sprite_draw;
+	spr->clone = sprite_clone;
 
 	return spr;
 }
@@ -111,6 +118,6 @@ readpngsprite(char *sheetfile, Point sp, Rectangle r, int nframes, ulong period)
 void
 delsprite(Sprite *spr)
 {
-	freeimage(spr->sheet);
+	//freeimage(spr->sheet);
 	free(spr);
 }

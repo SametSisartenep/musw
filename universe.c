@@ -103,12 +103,15 @@ universe_collide(Universe *u)
 	Bullet *b;
 
 	for(s = u->ships; s < u->ships+nelem(u->ships); s++){
-		for(b = s->rounds; b < s->rounds+nelem(s->rounds); b++){
-			if(b->fired && b->ttl <= 0)
-				b->fired = 0;
-			if(b->fired)
+		for(b = s->rounds; b < s->rounds+nelem(s->rounds); b++)
+			if(b->fired){
+				if(b->ttl <= 0){
+					b->fired = 0;
+					continue;
+				}
 				warp(b);
-		}
+				
+			}
 		warp(s);
 	}
 }
@@ -152,11 +155,9 @@ inituniverse(Universe *u)
 	}
 
 	u->ships[0].mass = 10e3; /* 10 tons */
-	u->ships[0].kind = NEEDLE;
 	u->ships[0].fuel = 100;
 
 	u->ships[1].mass = 40e3; /* 40 tons */
-	u->ships[1].kind = WEDGE;
 	u->ships[1].fuel = 200;
 
 	u->ships[0].forward = u->ships[1].forward = ship_forward;

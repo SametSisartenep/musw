@@ -14,6 +14,7 @@ OFILES=\
 	party.$O\
 	universe.$O\
 	sprite.$O\
+	vfx.$O\
 	net.$O\
 	fmt.$O\
 
