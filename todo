@@ -1,8 +1,8 @@
 [ ] collision detection
 [✓] toroidal warping
-[ ] respect bullets's ttl
+[✓] respect bullets's ttl
 	[✓] communicate this event to the clients (δ: fired 1 → 0)
-	[ ] explode when the time comes
+	[✓] explode when the time comes
 [ ] fuel consumption
 [ ] hyperjump
 	[ ] minskytron effect
