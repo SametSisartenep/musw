@@ -26,7 +26,7 @@ vfx_step(Vfx *v, ulong Δt)
 static void
 vfx_draw(Vfx *v, Image *dst)
 {
-	v->a->draw(v->a, dst, v->p);
+	v->a->draw(v->a, dst, subpt(v->p, divpt(subpt(v->a->r.max, v->a->r.min), 2)));
 }
 
 Vfx *

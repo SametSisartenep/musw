@@ -11,6 +11,7 @@
 #include <geometry.h>
 #include "dat.h"
 #include "fns.h"
+#include "cmixer.h"
 
 enum {
 	GSIntro,
@@ -676,6 +677,24 @@ State *playing_δ(State *s, void*)
 }
 
 void
+soundproc(void *)
+{
+	Biobuf *aout;
+	uchar adata[512];
+
+	threadsetname("soundproc");
+
+	aout = Bopen("/dev/audio", OWRITE);
+	if(aout == nil)
+		sysfatal("Bopen: %r");
+
+	for(;;){
+		cm_process((void *)adata, sizeof(adata)/2);
+		Bwrite(aout, adata, sizeof adata);
+	}
+}
+
+void
 usage(void)
 {
 	fprint(2, "usage: %s [-dg] server\n", argv0);
@@ -690,6 +709,7 @@ threadmain(int argc, char *argv[])
 	char *server;
 	int fd;
 	Vfx *vfx;
+	cm_Source *bgsound;
 	Mousectl *mc;
 	Ioproc *io;
 
@@ -717,6 +737,9 @@ threadmain(int argc, char *argv[])
 		sysfatal("initdraw: %r");
 	if((mc = initmouse(nil, screen)) == nil)
 		sysfatal("initmouse: %r");
+	cm_init(44100);
+	cm_set_master_gain(0.5);
+
 	display->locking = 1;
 	unlockdisplay(display);
 
@@ -750,6 +773,13 @@ threadmain(int argc, char *argv[])
 
 	vfxtab[VFX_BULLET_EXPLOSION] = readpngsprite("assets/vfx/bullet.explosion.png", ZP, Rect(0, 0, 32, 32), 12, 100);
 	initvfx(&vfxqueue);
+
+	bgsound = cm_new_source_from_file("assets/sfx/intro.wav");
+	if(bgsound == nil)
+		sysfatal("cm_new_source_from_file: %s", cm_get_error());
+	cm_play(bgsound);
+
+	proccreate(soundproc, nil, mainstacksize);
 
 	gamestates[GSIntro].δ = intro_δ;
 	gamestates[GSConnecting].δ = connecting_δ;

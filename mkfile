@@ -15,12 +15,14 @@ OFILES=\
 	universe.$O\
 	sprite.$O\
 	vfx.$O\
+	cmixer.$O\
 	net.$O\
 	fmt.$O\
 
 HFILES=\
 	dat.h\
 	fns.h\
+	cmixer.h\
 
 </sys/src/cmd/mkmany
 

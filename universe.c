@@ -99,7 +99,7 @@ warp(Particle *p)
 static void
 universe_collide(Universe *u)
 {
-	Ship *s;
+	Ship *s, *enemy;
 	Bullet *b;
 
 	for(s = u->ships; s < u->ships+nelem(u->ships); s++){
@@ -110,7 +110,15 @@ universe_collide(Universe *u)
 					continue;
 				}
 				warp(b);
-				
+
+				enemy = &u->ships[(s - u->ships + 1) % nelem(u->ships)];
+				/*
+				 * TODO: fix it
+				 *
+				 * of course it fails, the server doesn't load VModels!
+				 */
+//				if(ptinpoly(b->p, enemy->mdl->pts, enemy->mdl->npts))
+//					fprint(2, "enemy hit\n");
 			}
 		warp(s);
 	}
