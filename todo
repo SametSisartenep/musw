@@ -1,4 +1,6 @@
 [ ] collision detection
+	[ ] load the models on the server
+	[ ] the server sends the ship models to the clients
 [✓] toroidal warping
 [✓] respect bullets's ttl
 	[✓] communicate this event to the clients (δ: fired 1 → 0)

@@ -645,11 +645,11 @@ resize(void)
 
 State *intro_δ(State *s, void *arg)
 {
-	double ∆t;
 	static ulong elapsed;
+	uvlong ∆t;
 
-	∆t = *(double*)arg;
-	elapsed += ∆t/1e6;
+	∆t = *(uvlong*)arg;
+	elapsed += ∆t;
 	if(elapsed > 5000)
 		return &gamestates[GSConnecting];
 	return s;
@@ -695,6 +695,49 @@ soundproc(void *)
 }
 
 void
+threadshow(void *)
+{
+	uvlong then, now, frametime, lastpktsent;
+	Vfx *vfx;
+	Ioproc *io;
+
+	then = nanosec();
+	lastpktsent = 0;
+	io = ioproc();
+	for(;;){
+		now = nanosec();
+		frametime = (now - then)/1000000ULL;
+		then = now;
+
+		switch(gamestate-gamestates){
+		case GSPlaying:
+			universe->star.spr->step(universe->star.spr, frametime);
+			for(vfx = vfxqueue.next; vfx != &vfxqueue; vfx = vfx->next)
+				vfx->step(vfx, frametime);
+			/* fallthrough */
+		default:
+			if(netconn.state == NCSConnecting)
+				lastpktsent += frametime;
+
+			if(netconn.state == NCSDisconnected ||
+			  (netconn.state == NCSConnecting && lastpktsent >= 1000)){
+				initconn();
+				lastpktsent = 0;
+			}
+			break;
+		case GSIntro:
+			intro->step(intro, frametime);
+			break;
+		}
+		gamestate = gamestate->δ(gamestate, &frametime);
+
+		redraw();
+
+		iosleep(io, HZ2MS(30));
+	}
+}
+
+void
 usage(void)
 {
 	fprint(2, "usage: %s [-dg] server\n", argv0);
@@ -704,14 +747,10 @@ usage(void)
 void
 threadmain(int argc, char *argv[])
 {
-	uvlong then, now, lastpktsent;
-	double frametime;
 	char *server;
 	int fd;
-	Vfx *vfx;
 	cm_Source *bgsound;
 	Mousectl *mc;
-	Ioproc *io;
 
 	GEOMfmtinstall();
 	fmtinstall('I', eipfmt);
@@ -793,39 +832,6 @@ threadmain(int argc, char *argv[])
 	threadcreate(threadnetppu, nil, mainstacksize);
 	threadcreate(threadnetsend, &fd, mainstacksize);
 	threadcreate(threadresize, mc, mainstacksize);
-
-	then = nanosec();
-	lastpktsent = 0;
-	io = ioproc();
-	for(;;){
-		now = nanosec();
-		frametime = now - then;
-		then = now;
-
-		switch(gamestate-gamestates){
-		case GSPlaying:
-			universe->star.spr->step(universe->star.spr, frametime/1e6);
-			for(vfx = vfxqueue.next; vfx != &vfxqueue; vfx = vfx->next)
-				vfx->step(vfx, frametime/1e6);
-			/* fallthrough */
-		default:
-			if(netconn.state == NCSConnecting)
-				lastpktsent += frametime/1e6;
-
-			if(netconn.state == NCSDisconnected ||
-			  (netconn.state == NCSConnecting && lastpktsent >= 1000)){
-				initconn();
-				lastpktsent = 0;
-			}
-			break;
-		case GSIntro:
-			intro->step(intro, frametime/1e6);
-			break;
-		}
-		gamestate = gamestate->δ(gamestate, &frametime);
-
-		redraw();
-
-		iosleep(io, HZ2MS(30));
-	}
+	threadcreate(threadshow, nil, mainstacksize);
+	yield();
 }
