@@ -657,14 +657,16 @@ State *intro_δ(State *s, void *arg)
 
 State *connecting_δ(State *s, void*)
 {
-	if(netconn.state != NCSConnecting)
+	if(netconn.state == NCSConnected)
 		return &gamestates[GSMatching];
 	return s;
 }
 
 State *matching_δ(State *s, void*)
 {
-	if(netconn.state == NCSConnected && weplaying)
+	if(netconn.state != NCSConnected)
+		return &gamestates[GSConnecting];
+	if(weplaying)
 		return &gamestates[GSPlaying];
 	return s;
 }

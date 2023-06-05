@@ -12,6 +12,7 @@ OFILES=\
 	nanosec.$O\
 	pack.$O\
 	party.$O\
+	player.$O\
 	universe.$O\
 	sprite.$O\
 	vfx.$O\

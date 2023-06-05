@@ -336,7 +336,7 @@ threadsim(void *)
 	uvlong then, now;
 	double frametime, Δt;
 	Ioproc *io;
-	Party *p;
+	Party *p, *np;
 	Player *player;
 	Ship *ship;
 
@@ -352,8 +352,7 @@ threadsim(void *)
 		if(players.len >= 2)
 			newparty(&theparty, players.get(&players), players.get(&players));
 
-partywalk:
-		for(p = theparty.next; p != &theparty; p = p->next){
+		for(p = theparty.next; p != &theparty; p = np){
 			p->u->timeacc += frametime/1e9;
 
 			for(i = 0; i < nelem(p->players); i++){
@@ -361,8 +360,9 @@ partywalk:
 				ship = &p->u->ships[i];
 
 				if((player->kdown & 1<<Kquit) != 0){
+					np = p->next;
 					popconn(player->conn);
-					goto partywalk;
+					goto partydone;
 				}
 				if((player->kdown & 1<<K↑) != 0)
 					ship->forward(ship, Δt);
@@ -384,6 +384,8 @@ partywalk:
 				p->u->step(p->u, Δt);
 				p->u->collide(p->u);
 			}
+			np = p->next;
+partydone:;
 		}
 
 		broadcaststate();
