@@ -3,6 +3,7 @@
 #include <ip.h>
 #include <mp.h>
 #include <libsec.h>
+#include <thread.h>
 #include <draw.h>
 #include <geometry.h>
 #include "dat.h"

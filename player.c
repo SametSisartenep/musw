@@ -3,6 +3,7 @@
 #include <ip.h>
 #include <mp.h>
 #include <libsec.h>
+#include <thread.h>
 #include <draw.h>
 #include <geometry.h>
 #include "dat.h"
@@ -16,6 +17,7 @@ newplayer(char *name, NetConn *nc)
 	p = emalloc(sizeof(Player));
 	p->name = name? strdup(name): nil;
 	p->conn = nc;
+	p->inputq = chancreate(sizeof(ulong), 20);
 	p->oldkdown = p->kdown = 0;
 	p->next = nil;
 
@@ -26,6 +28,7 @@ void
 delplayer(Player *p)
 {
 	free(p->name);
+	chanclose(p->inputq);
 	free(p);
 }
 

@@ -213,6 +213,7 @@ struct Player
 {
 	char *name;
 	NetConn *conn;
+	Channel *inputq;
 	ulong oldkdown, kdown;
 	Player *next;
 };

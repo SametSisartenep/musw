@@ -233,7 +233,7 @@ threadnetppu(void *)
 				if(debug)
 					fprint(2, "\t%.*lub\n", sizeof(kdown)*8, kdown);
 
-				nc->player->kdown = kdown;
+				nbsendul(nc->player->inputq, kdown);
 
 				break;
 			case NCbuhbye:
@@ -333,6 +333,7 @@ void
 threadsim(void *)
 {
 	int i;
+	ulong kdown;
 	uvlong then, now;
 	double frametime, Δt;
 	Ioproc *io;
@@ -358,6 +359,9 @@ threadsim(void *)
 			for(i = 0; i < nelem(p->players); i++){
 				player = p->players[i];
 				ship = &p->u->ships[i];
+
+				if(nbrecv(player->inputq, &kdown) != 0)
+					player->kdown = kdown;
 
 				if((player->kdown & 1<<Kquit) != 0){
 					np = p->next;
