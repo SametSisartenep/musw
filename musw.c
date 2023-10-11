@@ -697,7 +697,7 @@ soundproc(void *)
 }
 
 void
-threadshow(void *)
+runshow(void)
 {
 	uvlong then, now, frametime, lastpktsent;
 	Vfx *vfx;
@@ -834,6 +834,5 @@ threadmain(int argc, char *argv[])
 	threadcreate(threadnetppu, nil, mainstacksize);
 	threadcreate(threadnetsend, &fd, mainstacksize);
 	threadcreate(threadresize, mc, mainstacksize);
-	threadcreate(threadshow, nil, mainstacksize);
-	yield();
+	runshow();
 }

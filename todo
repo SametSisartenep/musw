@@ -17,6 +17,7 @@
 	[✓] main game
 [ ] keep a score
 [ ] manage health
+	> related to hyperjump and the increasing likelihood of its destroying the ship.
 [ ] reduce the amount of data sent on every NSsimstate packet
 	[✓] only send the fired bullets
 	[ ] bit packing

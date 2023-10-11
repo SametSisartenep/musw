@@ -330,7 +330,7 @@ broadcaststate(void)
 }
 
 void
-threadsim(void *)
+runsim(void)
 {
 	int i;
 	ulong kdown;
@@ -536,6 +536,5 @@ threadmain(int argc, char *argv[])
 	threadcreate(threadnetrecv, &adfd, mainstacksize);
 	threadcreate(threadnetppu, nil, mainstacksize);
 	threadcreate(threadnetsend, &adfd, mainstacksize);
-	threadcreate(threadsim, nil, mainstacksize);
-	yield();
+	runsim();
 }
